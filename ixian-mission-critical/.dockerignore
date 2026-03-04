@@ -1,0 +1,36 @@
+# Dependencies
+node_modules
+
+# Build outputs
+build
+.svelte-kit
+
+# Native platforms
+android
+ios
+
+# IDE and editor
+.idea
+.vscode
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test files
+*.test.ts
+*.spec.ts
+coverage
+
+# Misc
+.DS_Store
+*.log
+*.md
+!README.md
