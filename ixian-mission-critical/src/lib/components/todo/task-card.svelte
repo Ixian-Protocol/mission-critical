@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import type { Task } from '$lib/db';
 	import { toggleTaskComplete, toggleTaskImportant, deleteTask, getTagColor } from '$lib/db';
 	import { Checkbox } from '$lib/components/ui/checkbox/index.js';
@@ -19,12 +20,29 @@
 
 	// Expanded state for reading full description
 	let expanded = $state(false);
+	let isJustCreated = $state(false);
+	let justCreatedTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Check if task is overdue
 	let isOverdue = $derived(task.dueAt && !task.completed && task.dueAt < Date.now());
 
-	// Check if task was just created (within last 1 second) - prevents accidental clicks
-	let isJustCreated = $derived(Date.now() - task.createdAt < 1000);
+	onMount(() => {
+		const age = Date.now() - task.createdAt;
+		if (age >= 1000) return;
+
+		isJustCreated = true;
+		justCreatedTimeout = setTimeout(() => {
+			isJustCreated = false;
+			justCreatedTimeout = null;
+		}, 1000 - age);
+	});
+
+	onDestroy(() => {
+		if (justCreatedTimeout) {
+			clearTimeout(justCreatedTimeout);
+			justCreatedTimeout = null;
+		}
+	});
 
 	// Format due date for display
 	function formatDueDate(timestamp: number): string {
