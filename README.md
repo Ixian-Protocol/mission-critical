@@ -238,4 +238,9 @@ pnpm open:ios
 
 ## License
 
-No license file is currently present in this repository.
+This project is licensed under the **Mission Critical Non-Commercial Source License v1.0**.
+
+- Free for personal, educational, and other non-commercial use
+- Commercial use is not permitted without separate permission
+
+See [LICENSE](./LICENSE) for full terms.

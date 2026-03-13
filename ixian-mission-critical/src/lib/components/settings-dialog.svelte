@@ -25,8 +25,8 @@
 	import { initNtfy, stopNtfy } from '$lib/native/ntfy';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
-	import CheckCircle2Icon from '@lucide/svelte/icons/check-circle-2';
-	import XCircleIcon from '@lucide/svelte/icons/x-circle';
+	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check';
+	import XCircleIcon from '@lucide/svelte/icons/circle-x';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 

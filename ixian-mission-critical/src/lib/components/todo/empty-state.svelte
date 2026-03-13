@@ -1,5 +1,5 @@
 <script lang="ts">
-	import CheckCircle2Icon from '@lucide/svelte/icons/check-circle-2';
+	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check';
 
 	interface Props {
 		title?: string;

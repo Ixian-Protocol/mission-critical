@@ -7,7 +7,7 @@
 	import CloudOffIcon from '@lucide/svelte/icons/cloud-off';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
+	import AlertCircleIcon from '@lucide/svelte/icons/circle-alert';
 	import { cn } from '$lib/utils';
 
 	let syncState = $derived(getSyncState());

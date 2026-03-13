@@ -36,3 +36,13 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## License
+
+This frontend is part of the Mission Critical monorepo and is distributed under the
+**Mission Critical Non-Commercial Source License v1.0**.
+
+- Free for non-commercial use
+- Commercial use requires separate permission
+
+See the repository root [LICENSE](../LICENSE) for details.

@@ -183,7 +183,6 @@
 		taskText = '';
 		taskDescription = '';
 		isImportant = false;
-		currentTag = 'General';
 		dueAt = null;
 		currentRecurrenceIndex = 0;
 		recurrenceAlt = false;
