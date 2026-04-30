@@ -164,7 +164,7 @@ Common compose vars:
 - `POSTGRES_DB` (default: `app`)
 - `ENVIRONMENT` (default: `development`)
 - `DEBUG` (default: `true`)
-- `BACKEND_CORS_ORIGINS` (comma-separated frontend origins allowed to call the backend; default: `http://localhost:3000,http://localhost:5173,http://localhost:4173`)
+- `BACKEND_CORS_ORIGINS` (comma-separated frontend origins allowed to call the backend; default: `http://localhost:3000,http://localhost:5173,http://localhost:4173,capacitor://localhost,http://localhost,https://localhost`)
 - `NTFY_URL` (default in compose backend: `http://ntfy:80`)
 - `NTFY_TOPIC` (default: `ixian-mission-critical`)
 - `NODE_MEMORY_MB` (default: `2048`; frontend build heap size in MB)
