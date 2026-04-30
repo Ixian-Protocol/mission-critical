@@ -59,6 +59,8 @@ services:
     build:
       context: ./ixian-mission-critical
       dockerfile: Dockerfile
+      args:
+        NODE_MEMORY_MB: ${NODE_MEMORY_MB:-2048}
     container_name: mission_critical_web
     restart: unless-stopped
     depends_on:

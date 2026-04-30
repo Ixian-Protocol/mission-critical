@@ -102,6 +102,12 @@ From repo root:
 docker compose up --build
 ```
 
+On low-memory hosts, set the Node build heap size:
+
+```bash
+NODE_MEMORY_MB=2048 docker compose up --build
+```
+
 Services:
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:8000`
@@ -160,6 +166,7 @@ Common compose vars:
 - `DEBUG` (default: `true`)
 - `NTFY_URL` (default in compose backend: `http://ntfy:80`)
 - `NTFY_TOPIC` (default: `ixian-mission-critical`)
+- `NODE_MEMORY_MB` (default: `2048`; frontend build heap size in MB)
 
 ### Backend (`ixian-mission-critical-backend/.env`)
 

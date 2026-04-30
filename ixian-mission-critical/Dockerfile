@@ -3,6 +3,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+ARG NODE_MEMORY_MB=2048
+ENV NODE_OPTIONS="--max-old-space-size=${NODE_MEMORY_MB}"
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
