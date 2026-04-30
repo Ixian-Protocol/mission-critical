@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -21,11 +21,11 @@ services:
     image: binwiederhier/ntfy:latest
     container_name: mission_critical_ntfy
     restart: unless-stopped
-    command: ["serve"]
+    command: [ "serve" ]
     ports:
       - "8082:80"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
+      test: [ "CMD-SHELL", "wget -q --tries=1 http://localhost:80/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
