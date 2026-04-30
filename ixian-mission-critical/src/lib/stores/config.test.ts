@@ -290,6 +290,33 @@ describe('config store', () => {
 			expect(fetch).toHaveBeenCalledTimes(2);
 		});
 
+		it('returns success when api/v1 base gets 200 from /api/v1/health', async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response('OK', { status: 200 }));
+
+			const result = await testApiConnection('https://api.example.com/api/v1');
+
+			expect(result.success).toBe(true);
+			expect(fetch).toHaveBeenCalledTimes(1);
+			expect(fetch).toHaveBeenCalledWith(
+				'https://api.example.com/api/v1/health',
+				expect.objectContaining({ method: 'GET' })
+			);
+		});
+
+		it('fails when api/v1 base returns non-OK on health (no HEAD masking)', async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response('Not Found', { status: 404 }));
+
+			const result = await testApiConnection('https://api.example.com/api/v1');
+
+			expect(result.success).toBe(false);
+			expect(result.error).toContain('404');
+			expect(fetch).toHaveBeenCalledTimes(1);
+			expect(fetch).toHaveBeenCalledWith(
+				'https://api.example.com/api/v1/health',
+				expect.any(Object)
+			);
+		});
+
 		it('returns success for 404 on base URL (server reachable)', async () => {
 			vi.mocked(fetch)
 				.mockResolvedValueOnce(new Response('Not Found', { status: 404 }))

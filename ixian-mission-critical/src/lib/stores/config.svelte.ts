@@ -172,9 +172,13 @@ export async function clearConfig(): Promise<void> {
 	cachedNotificationsEnabled = false;
 }
 
+function isLikelyApiV1Base(normalizedUrl: string): boolean {
+	return /\/api\/v1$/i.test(normalizedUrl);
+}
+
 /**
- * Test connection to the API URL
- * Returns true if the URL is reachable
+ * Test connection to the configured API base URL using GET {base}/health (root `/health`
+ * when base is the origin only, or `/api/v1/health` when base ends with `/api/v1`).
  */
 export async function testApiConnection(
 	url: string
@@ -183,7 +187,7 @@ export async function testApiConnection(
 		// Normalize URL (remove trailing slash)
 		const normalizedUrl = url.replace(/\/+$/, '');
 
-		// Try to reach a health endpoint or the base URL
+		// Probe GET {base}/health: matches GET /health at origin or GET /api/v1/health when base ends with /api/v1
 		const response = await fetch(`${normalizedUrl}/health`, {
 			method: 'GET',
 			signal: AbortSignal.timeout(5000) // 5 second timeout
@@ -193,14 +197,20 @@ export async function testApiConnection(
 			return { success: true };
 		}
 
-		// If /health doesn't exist, try the base URL
+		if (isLikelyApiV1Base(normalizedUrl)) {
+			return {
+				success: false,
+				error: `Health check failed (${response.status}). Verify the API base URL and that the backend is running`
+			};
+		}
+
+		// Legacy: hostname-only URLs may omit /api/v1; try reachability via HEAD base when root /health misses
 		const baseResponse = await fetch(normalizedUrl, {
 			method: 'HEAD',
 			signal: AbortSignal.timeout(5000)
 		});
 
 		if (baseResponse.ok || baseResponse.status === 404) {
-			// 404 is acceptable - server is reachable but no root route
 			return { success: true };
 		}
 
