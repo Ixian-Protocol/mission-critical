@@ -90,11 +90,24 @@ async def get_tasks(
     tag: str | None = Query(None, description="Filter by tag name"),
     completed: bool | None = Query(None, description="Filter by completion status"),
     important: bool | None = Query(None, description="Filter by importance"),
+    since: int | None = Query(
+        None,
+        ge=0,
+        description=(
+            "Unix timestamp (ms). Returns tasks with updated_at > since, "
+            "including soft-deleted tasks for sync."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[TaskResponse]:
-    """Get all non-deleted tasks with optional filters."""
+    """Get tasks with optional filters; since-based sync includes soft-deleted tasks."""
     controller = TaskController(db)
-    return await controller.get_tasks(tag=tag, completed=completed, important=important)
+    return await controller.get_tasks(
+        tag=tag,
+        completed=completed,
+        important=important,
+        since=since,
+    )
 
 
 @router.get(

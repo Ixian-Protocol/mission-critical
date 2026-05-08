@@ -24,6 +24,7 @@ class TaskService:
         tag: str | None = None,
         completed: bool | None = None,
         important: bool | None = None,
+        since: int | None = None,
         include_deleted: bool = False,
     ) -> list[Task]:
         """
@@ -33,9 +34,14 @@ class TaskService:
             tag: Filter by tag name
             completed: Filter by completion status
             important: Filter by importance
+            since: If provided, return tasks updated after this timestamp
             include_deleted: If True, include soft-deleted tasks
         """
         query = select(Task)
+
+        if since is not None:
+            query = query.where(Task.updated_at > since)
+            include_deleted = True
 
         if not include_deleted:
             query = query.where(Task.deleted_at.is_(None))
@@ -49,7 +55,10 @@ class TaskService:
         if important is not None:
             query = query.where(Task.important == important)
 
-        query = query.order_by(Task.created_at.desc())
+        if since is not None:
+            query = query.order_by(Task.updated_at.desc())
+        else:
+            query = query.order_by(Task.created_at.desc())
 
         result = await self.db.execute(query)
         return list(result.scalars().all())

@@ -24,6 +24,9 @@ let cachedNtfyUrl: string | null = null;
 let cachedNotificationsEnabled: boolean = false;
 let initialized = false;
 
+const API_V1_SUFFIX = '/api/v1';
+const API_V1_BASE_PATTERN = /\/api\/v1$/i;
+
 /**
  * Initialize the config store - must be called before accessing config
  * Loads values from Capacitor Preferences into memory cache
@@ -40,7 +43,7 @@ export async function initConfig(): Promise<void> {
 				Preferences.get({ key: NOTIFICATIONS_ENABLED_KEY })
 			]);
 
-		cachedApiUrl = apiUrlResult.value;
+		cachedApiUrl = normalizeApiUrl(apiUrlResult.value);
 		cachedSetupComplete = setupCompleteResult.value === 'true';
 		cachedNtfyUrl = ntfyUrlResult.value;
 		cachedNotificationsEnabled = notificationsEnabledResult.value === 'true';
@@ -49,7 +52,7 @@ export async function initConfig(): Promise<void> {
 		console.error('Failed to initialize config from Preferences:', error);
 		// Fall back to localStorage for web
 		if (typeof localStorage !== 'undefined') {
-			cachedApiUrl = localStorage.getItem(API_URL_KEY);
+			cachedApiUrl = normalizeApiUrl(localStorage.getItem(API_URL_KEY));
 			cachedSetupComplete = localStorage.getItem(SETUP_COMPLETE_KEY) === 'true';
 			cachedNtfyUrl = localStorage.getItem(NTFY_URL_KEY);
 			cachedNotificationsEnabled = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) === 'true';
@@ -72,7 +75,7 @@ export function getApiUrl(): string | null {
 export async function getApiUrlAsync(): Promise<string | null> {
 	try {
 		const result = await Preferences.get({ key: API_URL_KEY });
-		cachedApiUrl = result.value;
+		cachedApiUrl = normalizeApiUrl(result.value);
 		return cachedApiUrl;
 	} catch {
 		return cachedApiUrl;
@@ -80,14 +83,28 @@ export async function getApiUrlAsync(): Promise<string | null> {
 }
 
 /**
+ * Normalize a user-provided backend URL into the API v1 base URL used by sync calls.
+ *
+ * Accepts either the backend origin (`http://host:8000`) or an explicit v1 base
+ * (`http://host:8000/api/v1`) so setup health checks and real API calls agree.
+ */
+export function normalizeApiUrl(url: string | null | undefined): string | null {
+	const normalizedUrl = url?.trim().replace(/\/+$/, '');
+	if (!normalizedUrl) return null;
+	if (isLikelyApiV1Base(normalizedUrl)) return normalizedUrl;
+	return `${normalizedUrl}${API_V1_SUFFIX}`;
+}
+
+/**
  * Set the API URL
  * Pass empty string for offline-only mode (no sync)
  */
 export async function setApiUrl(url: string): Promise<void> {
+	const normalizedUrl = normalizeApiUrl(url);
 	try {
-		if (url) {
-			await Preferences.set({ key: API_URL_KEY, value: url });
-			cachedApiUrl = url;
+		if (normalizedUrl) {
+			await Preferences.set({ key: API_URL_KEY, value: normalizedUrl });
+			cachedApiUrl = normalizedUrl;
 		} else {
 			// Empty URL = offline mode, remove the key
 			await Preferences.remove({ key: API_URL_KEY });
@@ -101,9 +118,9 @@ export async function setApiUrl(url: string): Promise<void> {
 		console.error('Failed to save API URL to Preferences:', error);
 		// Fall back to localStorage for web
 		if (typeof localStorage !== 'undefined') {
-			if (url) {
-				localStorage.setItem(API_URL_KEY, url);
-				cachedApiUrl = url;
+			if (normalizedUrl) {
+				localStorage.setItem(API_URL_KEY, normalizedUrl);
+				cachedApiUrl = normalizedUrl;
 			} else {
 				localStorage.removeItem(API_URL_KEY);
 				cachedApiUrl = null;
@@ -173,21 +190,23 @@ export async function clearConfig(): Promise<void> {
 }
 
 function isLikelyApiV1Base(normalizedUrl: string): boolean {
-	return /\/api\/v1$/i.test(normalizedUrl);
+	return API_V1_BASE_PATTERN.test(normalizedUrl);
 }
 
 /**
- * Test connection to the configured API base URL using GET {base}/health (root `/health`
- * when base is the origin only, or `/api/v1/health` when base ends with `/api/v1`).
+ * Test connection to the configured API base URL using GET {base}/health.
+ * User-entered origins are normalized to `/api/v1` before probing.
  */
 export async function testApiConnection(
 	url: string
 ): Promise<{ success: boolean; error?: string }> {
 	try {
-		// Normalize URL (remove trailing slash)
-		const normalizedUrl = url.replace(/\/+$/, '');
+		const normalizedUrl = normalizeApiUrl(url);
 
-		// Probe GET {base}/health: matches GET /health at origin or GET /api/v1/health when base ends with /api/v1
+		if (!normalizedUrl) {
+			return { success: false, error: 'API URL is required' };
+		}
+
 		const response = await fetch(`${normalizedUrl}/health`, {
 			method: 'GET',
 			signal: AbortSignal.timeout(5000) // 5 second timeout
@@ -197,24 +216,10 @@ export async function testApiConnection(
 			return { success: true };
 		}
 
-		if (isLikelyApiV1Base(normalizedUrl)) {
-			return {
-				success: false,
-				error: `Health check failed (${response.status}). Verify the API base URL and that the backend is running`
-			};
-		}
-
-		// Legacy: hostname-only URLs may omit /api/v1; try reachability via HEAD base when root /health misses
-		const baseResponse = await fetch(normalizedUrl, {
-			method: 'HEAD',
-			signal: AbortSignal.timeout(5000)
-		});
-
-		if (baseResponse.ok || baseResponse.status === 404) {
-			return { success: true };
-		}
-
-		return { success: false, error: `Server returned status ${baseResponse.status}` };
+		return {
+			success: false,
+			error: `Health check failed (${response.status}). Verify the API base URL and that the backend is running`
+		};
 	} catch (error) {
 		if (error instanceof Error) {
 			if (error.name === 'TimeoutError' || error.name === 'AbortError') {

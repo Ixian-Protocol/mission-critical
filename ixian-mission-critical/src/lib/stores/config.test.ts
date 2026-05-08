@@ -35,6 +35,7 @@ import {
 	getApiUrl,
 	getApiUrlAsync,
 	setApiUrl,
+	normalizeApiUrl,
 	isSetupComplete,
 	isSetupCompleteAsync,
 	clearConfig,
@@ -96,7 +97,7 @@ describe('config store', () => {
 
 			const url = getApiUrl();
 
-			expect(url).toBe('https://api.example.com');
+			expect(url).toBe('https://api.example.com/api/v1');
 		});
 	});
 
@@ -106,7 +107,7 @@ describe('config store', () => {
 
 			const url = await getApiUrlAsync();
 
-			expect(url).toBe('https://stored.example.com');
+			expect(url).toBe('https://stored.example.com/api/v1');
 			expect(Preferences.get).toHaveBeenCalledWith({ key: 'api_url' });
 		});
 
@@ -124,17 +125,17 @@ describe('config store', () => {
 			await getApiUrlAsync();
 			const cachedUrl = getApiUrl();
 
-			expect(cachedUrl).toBe('https://new.example.com');
+			expect(cachedUrl).toBe('https://new.example.com/api/v1');
 		});
 	});
 
 	describe('setApiUrl', () => {
-		it('saves API URL to storage', async () => {
+		it('saves normalized API URL to storage', async () => {
 			await setApiUrl('https://api.example.com');
 
 			expect(Preferences.set).toHaveBeenCalledWith({
 				key: 'api_url',
-				value: 'https://api.example.com'
+				value: 'https://api.example.com/api/v1'
 			});
 		});
 
@@ -150,7 +151,7 @@ describe('config store', () => {
 		it('updates cached value', async () => {
 			await setApiUrl('https://api.example.com');
 
-			expect(getApiUrl()).toBe('https://api.example.com');
+			expect(getApiUrl()).toBe('https://api.example.com/api/v1');
 		});
 
 		it('updates setup complete status in cache', async () => {
@@ -160,6 +161,31 @@ describe('config store', () => {
 			await setApiUrl('https://api.example.com');
 
 			expect(isSetupComplete()).toBe(true);
+		});
+	});
+
+	describe('normalizeApiUrl', () => {
+		it('appends /api/v1 to backend origins', () => {
+			expect(normalizeApiUrl('http://192.168.1.10:8000')).toBe(
+				'http://192.168.1.10:8000/api/v1'
+			);
+		});
+
+		it('keeps explicit /api/v1 bases unchanged', () => {
+			expect(normalizeApiUrl('http://192.168.1.10:8000/api/v1')).toBe(
+				'http://192.168.1.10:8000/api/v1'
+			);
+		});
+
+		it('trims whitespace and trailing slashes', () => {
+			expect(normalizeApiUrl(' http://192.168.1.10:8000/// ')).toBe(
+				'http://192.168.1.10:8000/api/v1'
+			);
+		});
+
+		it('returns null for empty values', () => {
+			expect(normalizeApiUrl('')).toBeNull();
+			expect(normalizeApiUrl(null)).toBeNull();
 		});
 	});
 
@@ -226,7 +252,7 @@ describe('config store', () => {
 
 		it('clears cached API URL', async () => {
 			await setApiUrl('https://api.example.com');
-			expect(getApiUrl()).toBe('https://api.example.com');
+			expect(getApiUrl()).toBe('https://api.example.com/api/v1');
 
 			await clearConfig();
 
@@ -261,7 +287,7 @@ describe('config store', () => {
 
 			expect(result.success).toBe(true);
 			expect(fetch).toHaveBeenCalledWith(
-				'https://api.example.com/health',
+				'https://api.example.com/api/v1/health',
 				expect.objectContaining({ method: 'GET' })
 			);
 		});
@@ -274,20 +300,19 @@ describe('config store', () => {
 			await testApiConnection('https://api.example.com///');
 
 			expect(fetch).toHaveBeenCalledWith(
-				'https://api.example.com/health',
+				'https://api.example.com/api/v1/health',
 				expect.any(Object)
 			);
 		});
 
-		it('falls back to base URL if health endpoint fails', async () => {
-			vi.mocked(fetch)
-				.mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
-				.mockResolvedValueOnce(new Response('', { status: 200 }));
+		it('fails when normalized api/v1 health endpoint fails', async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response('Not Found', { status: 404 }));
 
 			const result = await testApiConnection('https://api.example.com');
 
-			expect(result.success).toBe(true);
-			expect(fetch).toHaveBeenCalledTimes(2);
+			expect(result.success).toBe(false);
+			expect(result.error).toContain('404');
+			expect(fetch).toHaveBeenCalledTimes(1);
 		});
 
 		it('returns success when api/v1 base gets 200 from /api/v1/health', async () => {
@@ -317,20 +342,8 @@ describe('config store', () => {
 			);
 		});
 
-		it('returns success for 404 on base URL (server reachable)', async () => {
-			vi.mocked(fetch)
-				.mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
-				.mockResolvedValueOnce(new Response('Not Found', { status: 404 }));
-
-			const result = await testApiConnection('https://api.example.com');
-
-			expect(result.success).toBe(true);
-		});
-
 		it('returns error for server errors', async () => {
-			vi.mocked(fetch)
-				.mockResolvedValueOnce(new Response('Error', { status: 500 }))
-				.mockResolvedValueOnce(new Response('Error', { status: 500 }));
+			vi.mocked(fetch).mockResolvedValueOnce(new Response('Error', { status: 500 }));
 
 			const result = await testApiConnection('https://api.example.com');
 

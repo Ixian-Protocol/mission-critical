@@ -284,6 +284,38 @@ def describe_tasks_api():
             assert response.status_code == 200
             assert response.json() == []
 
+        @pytest.mark.asyncio
+        async def it_filters_by_since(
+            client: AsyncClient, multiple_tasks: list[Task]
+        ):
+            # Arrange - only the newest task should be newer than this timestamp
+            since = multiple_tasks[1].updated_at
+
+            # Act
+            response = await client.get("/api/v1/tasks", params={"since": since})
+
+            # Assert
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 1
+            assert data[0]["id"] == multiple_tasks[0].id
+
+        @pytest.mark.asyncio
+        async def it_includes_soft_deleted_tasks_when_filtering_by_since(
+            client: AsyncClient, existing_task: Task, deleted_task: Task
+        ):
+            # Arrange - since-based pulls are used for sync and must carry tombstones
+            since = deleted_task.updated_at - 10000
+
+            # Act
+            response = await client.get("/api/v1/tasks", params={"since": since})
+
+            # Assert
+            assert response.status_code == 200
+            ids = {task["id"] for task in response.json()}
+            assert existing_task.id in ids
+            assert deleted_task.id in ids
+
     def describe_get_task():
         """GET /api/v1/tasks/{id} endpoint tests."""
 

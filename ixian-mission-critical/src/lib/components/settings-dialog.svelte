@@ -191,11 +191,14 @@
 					<Input
 						id="settings-apiUrl"
 						type="url"
-						placeholder="https://tasks.example.com"
+						placeholder="http://192.168.1.10:3000"
 						bind:value={apiUrl}
 					/>
 				</Content>
-				<Description>Leave empty for offline-only mode (no sync)</Description>
+				<Description>
+					Docker users can use the frontend URL. /api/v1 is added automatically. Leave
+					empty for offline-only mode (no sync).
+				</Description>
 			</Field>
 
 			{#if apiUrl}

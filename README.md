@@ -114,6 +114,11 @@ Services:
 - Postgres: `localhost:5433`
 - ntfy: `http://localhost:8082`
 
+When opening the frontend from another device on your LAN, use the Docker host's
+LAN IP, for example `http://192.168.1.10:3000`. In the app setup screen, enter
+that same frontend URL as the Server URL. The frontend container proxies
+`/api/v1` to the backend container, and the app adds `/api/v1` automatically.
+
 Stop stack:
 
 ```bash
@@ -182,6 +187,12 @@ See `.env.example` for full keys. Important ones:
 
 - `VITE_SKIP_SETUP=true` bypasses setup-route requirement for local/offline dev.
 
+The frontend stores the Server URL per browser/device during setup. For Docker
+Compose on a LAN, prefer the frontend origin such as `http://192.168.1.10:3000`;
+nginx will proxy `/api/v1` to the backend. If you instead point clients directly
+at the backend (`http://192.168.1.10:8000`), include the frontend LAN origin in
+`BACKEND_CORS_ORIGINS`.
+
 ## Running Tests
 
 ### Backend
@@ -236,8 +247,9 @@ pnpm open:ios
 - Setup keeps redirecting to `/setup`:
   - complete setup once, or set `VITE_SKIP_SETUP=true` in frontend `.env` for local dev.
 - Frontend can’t reach backend:
-  - verify backend health at `http://localhost:8000/health`
-  - ensure CORS allows your frontend origin.
+  - from the Docker host, verify backend health at `http://localhost:8000/health`
+  - from another LAN device, configure Server URL as the frontend URL, e.g. `http://192.168.1.10:3000`
+  - if calling the backend directly from the browser, ensure CORS allows your frontend origin.
 - ntfy reminders not firing:
   - ensure backend `NTFY_URL` is set and reachable
   - ensure tasks have `due_at`, are not completed/deleted, and are ~15 minutes out.

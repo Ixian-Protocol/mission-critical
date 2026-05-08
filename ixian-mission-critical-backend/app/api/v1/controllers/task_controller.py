@@ -35,12 +35,14 @@ class TaskController:
         tag: str | None = None,
         completed: bool | None = None,
         important: bool | None = None,
+        since: int | None = None,
     ) -> list[TaskResponse]:
         """Get all tasks with optional filters."""
         tasks = await self.task_service.get_all(
             tag=tag,
             completed=completed,
             important=important,
+            since=since,
         )
         return [TaskResponse.model_validate(task) for task in tasks]
 
