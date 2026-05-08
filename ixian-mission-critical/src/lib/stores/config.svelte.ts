@@ -17,11 +17,11 @@ const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 // Fixed ntfy topic name (single-user app)
 export const NTFY_TOPIC = 'ixian-mission-critical';
 
-// In-memory cache for synchronous access
-let cachedApiUrl: string | null = null;
-let cachedSetupComplete: boolean = false;
-let cachedNtfyUrl: string | null = null;
-let cachedNotificationsEnabled: boolean = false;
+// In-memory cache for synchronous access (reactive — UI updates after initConfig / setApiUrl)
+let cachedApiUrl = $state<string | null>(null);
+let cachedSetupComplete = $state(false);
+let cachedNtfyUrl = $state<string | null>(null);
+let cachedNotificationsEnabled = $state(false);
 let initialized = false;
 
 const API_V1_SUFFIX = '/api/v1';
@@ -47,6 +47,22 @@ export async function initConfig(): Promise<void> {
 		cachedSetupComplete = setupCompleteResult.value === 'true';
 		cachedNtfyUrl = ntfyUrlResult.value;
 		cachedNotificationsEnabled = notificationsEnabledResult.value === 'true';
+
+		// Web: URL may only exist in localStorage (e.g. Preferences empty on first load)
+		if (typeof localStorage !== 'undefined') {
+			if (!cachedApiUrl) {
+				cachedApiUrl = normalizeApiUrl(localStorage.getItem(API_URL_KEY));
+			}
+			if (!cachedSetupComplete && localStorage.getItem(SETUP_COMPLETE_KEY) === 'true') {
+				cachedSetupComplete = true;
+			}
+			if (!cachedNtfyUrl && localStorage.getItem(NTFY_URL_KEY)) {
+				cachedNtfyUrl = localStorage.getItem(NTFY_URL_KEY);
+			}
+			if (!cachedNotificationsEnabled && localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) === 'true') {
+				cachedNotificationsEnabled = true;
+			}
+		}
 		initialized = true;
 	} catch (error) {
 		console.error('Failed to initialize config from Preferences:', error);
@@ -76,6 +92,9 @@ export async function getApiUrlAsync(): Promise<string | null> {
 	try {
 		const result = await Preferences.get({ key: API_URL_KEY });
 		cachedApiUrl = normalizeApiUrl(result.value);
+		if (!cachedApiUrl && typeof localStorage !== 'undefined') {
+			cachedApiUrl = normalizeApiUrl(localStorage.getItem(API_URL_KEY));
+		}
 		return cachedApiUrl;
 	} catch {
 		return cachedApiUrl;

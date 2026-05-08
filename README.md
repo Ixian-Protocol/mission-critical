@@ -250,6 +250,7 @@ pnpm open:ios
 - Frontend can’t reach backend:
   - from the Docker host, verify backend health at `http://localhost:8000/health`
   - from another LAN device, configure Server URL as the frontend URL, e.g. `http://192.168.1.10:3000`
+  - **Capacitor (iOS/Android):** the Server URL is stored on each device (not synced from your desktop browser). Use your LAN URL (not `localhost`). Rebuild the native app after pulling changes that affect Android `network_security_config` / iOS ATS, then run **Test connection** in Settings.
   - if calling the backend directly from the browser, ensure CORS allows your frontend origin: add `http://<lan-ip>:3000` to `BACKEND_CORS_ORIGINS`, or use `BACKEND_CORS_ORIGIN_REGEX` (Compose sets a sensible default for `192.168.*.*`). If Firefox reports `Access-Control-Allow-Origin` missing while the JSON response loads, your `Origin` is not in `allow_origins` and doesn’t match the regex.
 - ntfy reminders not firing:
   - ensure backend `NTFY_URL` is set and reachable

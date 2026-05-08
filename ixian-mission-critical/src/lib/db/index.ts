@@ -19,6 +19,7 @@ export {
 	createTaskCountsQuery,
 	getPendingTasks,
 	markTaskSynced,
+	clearTaskServerLink,
 	upsertTasksFromServer,
 	purgeSyncedDeletedTasks,
 	createNextRecurrence
@@ -48,6 +49,7 @@ export {
 	refreshTagColorCache,
 	getPendingTags,
 	markTagSynced,
+	clearTagServerLink,
 	upsertTagsFromServer,
 	purgeSyncedDeletedTags
 } from './tags.svelte';

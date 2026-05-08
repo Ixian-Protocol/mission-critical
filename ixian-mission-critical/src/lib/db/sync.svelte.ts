@@ -8,18 +8,20 @@
 import { getIsOnline, onOnline } from '$lib/api/offline';
 import { getApiUrl } from '$lib/stores/config.svelte';
 import { apiClient } from '$lib/api';
-import { isApiError } from '$lib/api/errors';
+import { isApiError, NetworkError, TimeoutError, OfflineError } from '$lib/api/errors';
 import type { ServerTask } from '$lib/api/endpoints/tasks';
 import type { ServerTag } from '$lib/api/endpoints/tags';
 import {
 	db,
 	getPendingTasks,
 	markTaskSynced,
+	clearTaskServerLink,
 	upsertTasksFromServer,
 	purgeSyncedDeletedTasks,
 	hardDeleteTask,
 	getPendingTags,
 	markTagSynced,
+	clearTagServerLink,
 	upsertTagsFromServer,
 	purgeSyncedDeletedTags
 } from './index';
@@ -214,8 +216,15 @@ async function pullTasksFromServer(since: number): Promise<number> {
 			return Math.max(...tasksForLocal.map((task) => task.updatedAt));
 		}
 	} catch (error) {
-		// Pull failures are non-fatal - we can still push local changes
-		console.warn('Failed to pull from server:', error);
+		// Reachability failures should surface in the UI; partial API errors stay non-fatal
+		if (
+			error instanceof NetworkError ||
+			error instanceof TimeoutError ||
+			error instanceof OfflineError
+		) {
+			throw error;
+		}
+		console.warn('Failed to pull tasks from server:', error);
 	}
 	return since;
 }
@@ -236,8 +245,18 @@ async function pushTasksToServer(): Promise<void> {
 				// Remove locally after successful server delete
 				await hardDeleteTask(task.id);
 			} else if (task.serverId) {
-				// Update existing task on server
-				await updateTaskOnServer(task);
+				try {
+					await updateTaskOnServer(task);
+				} catch (error) {
+					// Server has no row for this id (new DB, different host, hard delete on server)
+					if (isApiError(error) && error.status === 404) {
+						await clearTaskServerLink(task.id);
+						const refreshed = await db.tasks.get(task.id);
+						if (refreshed) await createTaskOnServer(refreshed);
+					} else {
+						console.error(`Failed to sync task ${task.id}:`, error);
+					}
+				}
 			} else {
 				// Create new task on server
 				await createTaskOnServer(task);
@@ -317,7 +336,13 @@ async function pullTagsFromServer(since: number): Promise<number> {
 			return Math.max(...tagsForLocal.map((tag) => tag.updatedAt));
 		}
 	} catch (error) {
-		// Pull failures are non-fatal - we can still push local changes
+		if (
+			error instanceof NetworkError ||
+			error instanceof TimeoutError ||
+			error instanceof OfflineError
+		) {
+			throw error;
+		}
 		console.warn('Failed to pull tags from server:', error);
 	}
 	return since;
@@ -339,8 +364,17 @@ async function pushTagsToServer(): Promise<void> {
 				// Hard delete locally after successful server delete
 				await db.tags.delete(tag.id);
 			} else if (tag.serverId) {
-				// Update existing tag on server
-				await updateTagOnServer(tag);
+				try {
+					await updateTagOnServer(tag);
+				} catch (error) {
+					if (isApiError(error) && error.status === 404) {
+						await clearTagServerLink(tag.id);
+						const refreshed = await db.tags.get(tag.id);
+						if (refreshed) await createTagOnServer(refreshed);
+					} else {
+						console.error(`Failed to sync tag ${tag.id}:`, error);
+					}
+				}
 			} else {
 				// Create new tag on server
 				await createTagOnServer(tag);

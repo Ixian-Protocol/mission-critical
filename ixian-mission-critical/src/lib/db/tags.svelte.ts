@@ -237,6 +237,13 @@ export async function markTagSynced(id: string, serverId: string): Promise<void>
 }
 
 /**
+ * Clear server id when the remote tag no longer exists. Sync-only; no triggerSync().
+ */
+export async function clearTagServerLink(id: string): Promise<void> {
+	await db.tags.update(id, { serverId: null, syncStatus: 'pending' });
+}
+
+/**
  * Bulk upsert tags from server (for sync)
  */
 export async function upsertTagsFromServer(

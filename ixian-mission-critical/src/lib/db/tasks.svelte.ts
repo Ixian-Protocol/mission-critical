@@ -309,6 +309,14 @@ export async function markTaskSynced(id: string, serverId: string): Promise<void
 }
 
 /**
+ * Clear server id when the remote task no longer exists (e.g. server DB reset or different backend).
+ * Intended for sync retries only — does not call triggerSync().
+ */
+export async function clearTaskServerLink(id: string): Promise<void> {
+	await db.tasks.update(id, { serverId: null, syncStatus: 'pending' });
+}
+
+/**
  * Bulk upsert tasks from server (for sync)
  */
 export async function upsertTasksFromServer(

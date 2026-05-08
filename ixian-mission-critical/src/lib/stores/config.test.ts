@@ -119,6 +119,32 @@ describe('config store', () => {
 			expect(url).toBeNull();
 		});
 
+		it('fills API URL from localStorage when Preferences has no api_url', async () => {
+			getMockStorage().clear();
+			const mem = new Map<string, string>([
+				['api_url', 'https://from-local.example.com']
+			]);
+			vi.stubGlobal('localStorage', {
+				getItem: (k: string) => mem.get(k) ?? null,
+				setItem: (k: string, v: string) => {
+					mem.set(k, v);
+				},
+				removeItem: (k: string) => {
+					mem.delete(k);
+				},
+				clear: () => {
+					mem.clear();
+				}
+			});
+
+			try {
+				const url = await getApiUrlAsync();
+				expect(url).toBe('https://from-local.example.com/api/v1');
+			} finally {
+				vi.unstubAllGlobals();
+			}
+		});
+
 		it('updates cache after reading from storage', async () => {
 			getMockStorage().set('api_url', 'https://new.example.com');
 
