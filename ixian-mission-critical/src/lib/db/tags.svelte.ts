@@ -8,6 +8,7 @@
 import { liveQuery, type Observable } from 'dexie';
 import { db, type Tag, DEFAULT_TAGS, TAG_COLORS } from './schema';
 import { triggerSync } from './sync.svelte';
+import { createUuid } from './uuid';
 
 /**
  * Initialize default tags if they don't exist
@@ -29,7 +30,7 @@ export async function initDefaultTags(): Promise<void> {
 	// They will get their serverId on first sync pull
 	for (let i = 0; i < DEFAULT_TAGS.length; i++) {
 		const tag: Tag = {
-			id: crypto.randomUUID(),
+			id: createUuid(),
 			name: DEFAULT_TAGS[i],
 			color: TAG_COLORS[i % TAG_COLORS.length],
 			isDefault: true,
@@ -71,7 +72,7 @@ export async function createTag(name: string): Promise<Tag> {
 	const color = await getNextTagColor();
 
 	const tag: Tag = {
-		id: crypto.randomUUID(),
+		id: createUuid(),
 		name: name.trim(),
 		color,
 		isDefault: false,
@@ -277,7 +278,7 @@ export async function upsertTagsFromServer(
 			} else {
 				// Insert new tag from server
 				await db.tags.add({
-					id: crypto.randomUUID(),
+					id: createUuid(),
 					name: serverTag.name,
 					color: serverTag.color,
 					isDefault: serverTag.isDefault,

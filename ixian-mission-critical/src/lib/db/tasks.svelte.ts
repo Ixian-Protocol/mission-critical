@@ -8,6 +8,7 @@
 import { liveQuery, type Observable } from 'dexie';
 import { db, type Task, type TaskTag, type RecurrenceType } from './schema';
 import { triggerSync } from './sync.svelte';
+import { createUuid } from './uuid';
 
 /**
  * Filter type for task lists
@@ -28,7 +29,7 @@ export async function createTask(data: {
 }): Promise<Task> {
 	const now = Date.now();
 	const task: Task = {
-		id: crypto.randomUUID(),
+		id: createUuid(),
 		text: data.text,
 		description: data.description ?? '',
 		completed: false,
@@ -350,7 +351,7 @@ export async function upsertTasksFromServer(
 			} else {
 				// Insert new task from server
 				await db.tasks.add({
-					id: crypto.randomUUID(),
+					id: createUuid(),
 					text: serverTask.text,
 					description: serverTask.description,
 					completed: serverTask.completed,
