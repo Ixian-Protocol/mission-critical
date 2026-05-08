@@ -170,6 +170,7 @@ Common compose vars:
 - `ENVIRONMENT` (default: `development`)
 - `DEBUG` (default: `true`)
 - `BACKEND_CORS_ORIGINS` (comma-separated frontend origins allowed to call the backend; default: `http://localhost:3000,http://localhost:5173,http://localhost:4173,capacitor://localhost,http://localhost,https://localhost`)
+- `BACKEND_CORS_ORIGIN_REGEX` (optional regex; Compose defaults so `192.168.*.*` LAN frontends are allowed against API on `:8000` without listing each IP — set empty to disable)
 - `NTFY_URL` (default in compose backend: `http://ntfy:80`)
 - `NTFY_TOPIC` (default: `ixian-mission-critical`)
 - `NODE_MEMORY_MB` (default: `2048`; frontend build heap size in MB)
@@ -179,7 +180,7 @@ Common compose vars:
 See `.env.example` for full keys. Important ones:
 - API metadata: `API_V1_PREFIX`, `PROJECT_NAME`, `VERSION`, `DESCRIPTION`
 - Runtime: `ENVIRONMENT`, `DEBUG`
-- CORS: `BACKEND_CORS_ORIGINS`
+- CORS: `BACKEND_CORS_ORIGINS`, optional `BACKEND_CORS_ORIGIN_REGEX` for LAN IPs
 - DB: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - ntfy: `NTFY_URL`, optional `NTFY_TOKEN`, `NTFY_TOPIC`
 
@@ -249,7 +250,7 @@ pnpm open:ios
 - Frontend can’t reach backend:
   - from the Docker host, verify backend health at `http://localhost:8000/health`
   - from another LAN device, configure Server URL as the frontend URL, e.g. `http://192.168.1.10:3000`
-  - if calling the backend directly from the browser, ensure CORS allows your frontend origin.
+  - if calling the backend directly from the browser, ensure CORS allows your frontend origin: add `http://<lan-ip>:3000` to `BACKEND_CORS_ORIGINS`, or use `BACKEND_CORS_ORIGIN_REGEX` (Compose sets a sensible default for `192.168.*.*`). If Firefox reports `Access-Control-Allow-Origin` missing while the JSON response loads, your `Origin` is not in `allow_origins` and doesn’t match the regex.
 - ntfy reminders not firing:
   - ensure backend `NTFY_URL` is set and reachable
   - ensure tasks have `due_at`, are not completed/deleted, and are ~15 minutes out.

@@ -37,6 +37,10 @@ services:
       dockerfile: dockerfile
     container_name: mission_critical_api
     restart: unless-stopped
+    # Load ixian-mission-critical-backend/.env into the container. Compose substitution
+    # (${VAR}) only reads the repo root .env — it does NOT read this file unless listed here.
+    env_file:
+      - ./ixian-mission-critical-backend/.env
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
@@ -45,9 +49,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-app}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-true}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:4173,capacitor://localhost,http://localhost,https://localhost}
-      NTFY_URL: ${NTFY_URL:-http://ntfy:80}
-      NTFY_TOPIC: ${NTFY_TOPIC:-ixian-mission-critical}
+      # Do not set BACKEND_CORS_ORIGINS or NTFY_* here for the same reason: compose
+      # `environment` overrides env_file. Put CORS and ntfy in ixian-mission-critical-backend/.env
+      # (see .env.example: NTFY_URL=http://ntfy:80 for the bundled ntfy service).
+      BACKEND_CORS_ORIGIN_REGEX: ${BACKEND_CORS_ORIGIN_REGEX:-^http://192\.168\.[0-9]+\.[0-9]+:[0-9]+}
     depends_on:
       db:
         condition: service_healthy

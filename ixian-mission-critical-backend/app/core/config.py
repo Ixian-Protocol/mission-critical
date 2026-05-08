@@ -45,6 +45,20 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
+    # Optional regex (e.g. ^http://192\.168\.[0-9]+\.[0-9]+:[0-9]+); empty disables matching
+    BACKEND_CORS_ORIGIN_REGEX: str | None = None
+
+    @field_validator("BACKEND_CORS_ORIGIN_REGEX", mode="before")
+    @classmethod
+    def cors_regex_strip_empty(cls, v: Any) -> str | None:
+        """Treat blank env values as unset (Starlette rejects empty regex)."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            trimmed = v.strip()
+            return trimmed or None
+        return None
+
     # Database
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432

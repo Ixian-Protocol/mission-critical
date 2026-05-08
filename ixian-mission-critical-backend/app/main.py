@@ -67,14 +67,16 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configure CORS
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # Configure CORS — allow_origins lists exact origins; regex matches LAN URLs when set
+    cors_kwargs = {
+        "allow_origins": settings.BACKEND_CORS_ORIGINS,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    if settings.BACKEND_CORS_ORIGIN_REGEX:
+        cors_kwargs["allow_origin_regex"] = settings.BACKEND_CORS_ORIGIN_REGEX
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
 
     # Add custom middleware
     app.add_middleware(LoggingMiddleware)
