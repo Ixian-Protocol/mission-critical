@@ -151,10 +151,11 @@ export async function syncWithServer(): Promise<void> {
 		// Get sync metadata
 		const meta = await getSyncMeta();
 		const lastSyncAt = meta?.lastSyncAt || 0;
+		let nextLastSyncAt = lastSyncAt;
 
 		// Step 1: Pull changes from server (tasks + tags)
-		await pullTasksFromServer(lastSyncAt);
-		await pullTagsFromServer(lastSyncAt);
+		nextLastSyncAt = Math.max(nextLastSyncAt, await pullTasksFromServer(lastSyncAt));
+		nextLastSyncAt = Math.max(nextLastSyncAt, await pullTagsFromServer(lastSyncAt));
 
 		// Step 2: Push local changes to server (tasks + tags)
 		await pushTasksToServer();
@@ -164,8 +165,10 @@ export async function syncWithServer(): Promise<void> {
 		await purgeSyncedDeletedTasks();
 		await purgeSyncedDeletedTags();
 
-		// Step 4: Update sync metadata
-		await updateSyncMeta(Date.now());
+		// Step 4: Update sync metadata using server item timestamps, not client wall-clock time.
+		if (nextLastSyncAt > lastSyncAt) {
+			await updateSyncMeta(nextLastSyncAt);
+		}
 
 		// Update pending count
 		await updatePendingCount();
@@ -200,7 +203,7 @@ function serverTaskToLocal(task: ServerTask) {
 /**
  * Pull task changes from server since last sync
  */
-async function pullTasksFromServer(since: number): Promise<void> {
+async function pullTasksFromServer(since: number): Promise<number> {
 	try {
 		const response = await apiClient.tasks.getAll(since);
 		const serverTasks = Array.isArray(response) ? response : response.data;
@@ -208,11 +211,13 @@ async function pullTasksFromServer(since: number): Promise<void> {
 		if (serverTasks && serverTasks.length > 0) {
 			const tasksForLocal = serverTasks.map(serverTaskToLocal);
 			await upsertTasksFromServer(tasksForLocal);
+			return Math.max(...tasksForLocal.map((task) => task.updatedAt));
 		}
 	} catch (error) {
 		// Pull failures are non-fatal - we can still push local changes
 		console.warn('Failed to pull from server:', error);
 	}
+	return since;
 }
 
 /**
@@ -301,7 +306,7 @@ function serverTagToLocal(tag: ServerTag) {
 /**
  * Pull tag changes from server since last sync
  */
-async function pullTagsFromServer(since: number): Promise<void> {
+async function pullTagsFromServer(since: number): Promise<number> {
 	try {
 		const response = await apiClient.tags.getAll(since);
 		const serverTags = Array.isArray(response) ? response : response.data;
@@ -309,11 +314,13 @@ async function pullTagsFromServer(since: number): Promise<void> {
 		if (serverTags && serverTags.length > 0) {
 			const tagsForLocal = serverTags.map(serverTagToLocal);
 			await upsertTagsFromServer(tagsForLocal);
+			return Math.max(...tagsForLocal.map((tag) => tag.updatedAt));
 		}
 	} catch (error) {
 		// Pull failures are non-fatal - we can still push local changes
 		console.warn('Failed to pull tags from server:', error);
 	}
+	return since;
 }
 
 /**
