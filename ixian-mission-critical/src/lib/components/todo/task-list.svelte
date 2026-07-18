@@ -83,12 +83,20 @@
 	bind:this={scrollEl}
 	class={cn('relative flex-1 overflow-y-auto p-4 pb-40 md:p-6', className)}
 	id="task-container"
+	role="region"
+	aria-label="Task list"
 	style="touch-action: pan-y"
 	ontouchstart={nativePull ? handleTouchStart : undefined}
 	ontouchmove={nativePull ? handleTouchMove : undefined}
 	ontouchend={nativePull ? handleTouchEnd : undefined}
 	ontouchcancel={nativePull ? handleTouchCancel : undefined}
 >
+	<div class="sr-only" aria-live="polite" aria-atomic="true">
+		{#if refreshing}
+			Refreshing tasks…
+		{/if}
+	</div>
+
 	{#if nativePull && (pullDy > 4 || refreshing)}
 		<div
 			class="pointer-events-none flex justify-center pb-2 text-muted-foreground"

@@ -1,7 +1,7 @@
 [project]
-name = "fastapi-prod-backend"
+name = "ixian-mission-critical-backend"
 version = "0.1.0"
-description = "Production-ready FastAPI backend with SQLAlchemy and Alembic"
+description = "Mission Critical FastAPI backend with SQLAlchemy and Alembic"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -23,6 +23,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-describe>=3.1.0",
+    "ruff>=0.12.0",
 ]
 
 [tool.pytest.ini_options]
@@ -30,3 +31,13 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B008: FastAPI Depends() in defaults is idiomatic
+# UP042: str Enum remains compatible with existing OpenAPI/clients
+ignore = ["E501", "B008", "UP042"]

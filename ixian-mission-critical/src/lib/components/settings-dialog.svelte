@@ -14,6 +14,8 @@
 	import {
 		getApiUrl,
 		getNtfyUrl,
+		getNtfyTopic,
+		ensureNtfyTopic,
 		isNotificationsEnabled,
 		setApiUrl,
 		saveNtfyConfig,
@@ -23,6 +25,7 @@
 	import { requestPermissions } from '$lib/native';
 	import { initSync, stopSync } from '$lib/db';
 	import { initNtfy, stopNtfy } from '$lib/native/ntfy';
+	import { logger } from '$lib/logger';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import CheckCircle2Icon from '@lucide/svelte/icons/circle-check';
@@ -36,6 +39,7 @@
 	let apiUrl = $state('');
 	let enableNotifications = $state(false);
 	let ntfyUrl = $state('');
+	let ntfyTopic = $state('');
 
 	// Connection status
 	let apiConnectionStatus = $state<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -49,6 +53,7 @@
 	function loadCurrentValues() {
 		apiUrl = getApiUrl() ?? '';
 		ntfyUrl = getNtfyUrl() ?? '';
+		ntfyTopic = getNtfyTopic();
 		enableNotifications = isNotificationsEnabled();
 		// Expand notifications section if already enabled
 		notificationsOpen = enableNotifications;
@@ -57,6 +62,9 @@
 		apiConnectionError = null;
 		ntfyConnectionStatus = 'idle';
 		ntfyConnectionError = null;
+		void ensureNtfyTopic().then((topic) => {
+			ntfyTopic = topic;
+		});
 	}
 
 	async function handleTestApiConnection() {
@@ -126,13 +134,16 @@
 			}
 
 			// Request notification permissions if enabling
-			console.log('[Settings] Checking if permission request needed:', { enableNotifications, currentNotificationsEnabled });
+			logger.debug('[Settings] Checking if permission request needed:', {
+				enableNotifications,
+				currentNotificationsEnabled
+			});
 			if (enableNotifications && !currentNotificationsEnabled) {
-				console.log('[Settings] Requesting notification permissions...');
+				logger.debug('[Settings] Requesting notification permissions...');
 				const granted = await requestPermissions();
-				console.log('[Settings] Permission granted:', granted);
+				logger.debug('[Settings] Permission granted:', granted);
 				if (!granted) {
-					console.warn('Notification permission not granted');
+					logger.warn('Notification permission not granted');
 				}
 			}
 
@@ -279,6 +290,17 @@
 								/>
 							</Content>
 							<Description>Your ntfy server (e.g., https://ntfy.sh)</Description>
+						</Field>
+
+						<Field>
+							<Label for="settings-ntfyTopic">ntfy Topic</Label>
+							<Content>
+								<Input id="settings-ntfyTopic" type="text" value={ntfyTopic} readonly />
+							</Content>
+							<Description>
+								Must match backend <code>NTFY_TOPIC</code> in
+								<code>.env</code>.
+							</Description>
 						</Field>
 
 						{#if ntfyConnectionStatus === 'success'}

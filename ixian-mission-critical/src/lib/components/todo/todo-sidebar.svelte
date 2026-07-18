@@ -91,14 +91,15 @@
 
 <Sidebar.Root class="border-e-0" {...restProps}>
 	<Sidebar.Header class="pt-[calc(env(safe-area-inset-top)+1rem)]">
-		<!-- User Profile Stub -->
-		<div class="flex items-center gap-3 px-2 pb-4">
+		<!-- Local profile stub (no accounts yet) -->
+		<div class="flex items-center gap-3 px-2 pb-4" role="group" aria-label="Local profile">
 			<div
 				class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-primary to-blue-500 text-xs font-bold text-primary-foreground"
+				aria-hidden="true"
 			>
 				U
 			</div>
-			<span class="text-sm font-medium text-foreground">User</span>
+			<span class="text-sm font-medium text-foreground">Local user</span>
 		</div>
 	</Sidebar.Header>
 

@@ -14,8 +14,9 @@
 import { z } from 'zod';
 import { ApiError, NetworkError, TimeoutError, OfflineError } from './errors';
 import { validate } from './schemas';
-import type { HttpMethod, RequestOptions, CacheOptions, AuthTokens } from './types';
+import type { HttpMethod, RequestOptions, AuthTokens } from './types';
 import { getApiUrl } from '$lib/stores/config.svelte';
+import { getIsOnline as getConnectivityOnline } from './offline/connectivity.svelte';
 
 // Storage keys
 const AUTH_TOKEN_KEY = 'api_auth_tokens';
@@ -84,11 +85,10 @@ export function getAccessToken(): string | null {
 // Connectivity check
 
 /**
- * Check if the browser is online
+ * Check if the browser is online (uses connectivity store when initialized)
  */
 export function isOnline(): boolean {
-	if (typeof navigator === 'undefined') return true;
-	return navigator.onLine;
+	return getConnectivityOnline();
 }
 
 // Core request function

@@ -4,27 +4,30 @@
  * Handles CRUD operations for tags with the backend server.
  * Uses snake_case for API payloads (Python backend convention).
  */
+import { z } from 'zod';
 import { api } from '../client';
 import type { Tag } from '$lib/db/schema';
 
-// Backend uses snake_case
-interface TagPayload {
-	name: string;
-	color: string;
-	is_default: boolean;
-	created_at: number;
-	updated_at: number;
-}
+export const serverTagSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	color: z.string(),
+	is_default: z.boolean(),
+	created_at: z.number(),
+	updated_at: z.number(),
+	deleted_at: z.number().nullable()
+});
 
-// Server response format (snake_case)
-export interface ServerTag {
+export type ServerTag = z.infer<typeof serverTagSchema>;
+
+const serverTagListSchema = z.array(serverTagSchema);
+
+interface TagPayload {
 	id: string;
 	name: string;
 	color: string;
-	is_default: boolean;
 	created_at: number;
 	updated_at: number;
-	deleted_at: number | null;
 }
 
 /**
@@ -32,9 +35,9 @@ export interface ServerTag {
  */
 function toPayload(tag: Tag): TagPayload {
 	return {
+		id: tag.serverId ?? tag.id,
 		name: tag.name,
 		color: tag.color,
-		is_default: tag.isDefault,
 		created_at: tag.createdAt,
 		updated_at: tag.updatedAt
 	};
@@ -43,16 +46,16 @@ function toPayload(tag: Tag): TagPayload {
 /**
  * Fetch all tags, optionally filtering by updated timestamp
  */
-export async function getAll(since?: number) {
+export async function getAll(since?: number): Promise<ServerTag[]> {
 	const endpoint = since && since > 0 ? `/tags?since=${since}` : '/tags';
-	return api.get<{ data: ServerTag[] } | ServerTag[]>(endpoint, { timeout: 10000 });
+	return api.getWithValidation(endpoint, serverTagListSchema, { timeout: 10000 });
 }
 
 /**
  * Create a new tag on the server
  */
-export async function create(tag: Tag) {
-	return api.post<{ data?: { id: string }; id?: string }>('/tags', toPayload(tag), {
+export async function create(tag: Tag): Promise<ServerTag> {
+	return api.postWithValidation('/tags', serverTagSchema, toPayload(tag), {
 		timeout: 10000
 	});
 }
@@ -60,17 +63,24 @@ export async function create(tag: Tag) {
 /**
  * Update an existing tag on the server
  */
-export async function update(serverId: string, tag: Tag) {
-	return api.patch<void>(`/tags/${serverId}`, toPayload(tag), {
-		timeout: 10000
-	});
+export async function update(serverId: string, tag: Tag): Promise<ServerTag> {
+	return api.patchWithValidation(
+		`/tags/${serverId}`,
+		serverTagSchema,
+		{
+			name: tag.name,
+			color: tag.color,
+			updated_at: tag.updatedAt
+		},
+		{ timeout: 10000 }
+	);
 }
 
 /**
- * Delete a tag from the server
+ * Soft-delete a tag from the server
  */
-export async function remove(serverId: string) {
-	return api.delete<void>(`/tags/${serverId}`, { timeout: 10000 });
+export async function remove(serverId: string): Promise<void> {
+	await api.delete<void>(`/tags/${serverId}`, { timeout: 10000 });
 }
 
 /**

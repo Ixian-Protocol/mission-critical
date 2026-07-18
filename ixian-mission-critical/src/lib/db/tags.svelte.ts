@@ -257,22 +257,35 @@ export async function upsertTagsFromServer(
 		deletedAt: number | null;
 	}>
 ): Promise<void> {
-	await db.transaction('rw', db.tags, async () => {
-		for (const serverTag of serverTags) {
-			// First try to find by serverId
-			let localTag = await db.tags.where('serverId').equals(serverTag.id).first();
+	if (serverTags.length === 0) return;
 
-			// If not found by serverId, try by name (for default tags without serverId)
-			if (!localTag) {
-				localTag = await db.tags
-					.filter((t) => t.name === serverTag.name && t.serverId === null)
-					.first();
+	await db.transaction('rw', db.tags, async () => {
+		const allLocal = await db.tags.toArray();
+		const byServerId = new Map<string, Tag>();
+		const byLocalId = new Map<string, Tag>();
+		const byNameUnlinked = new Map<string, Tag>();
+
+		for (const local of allLocal) {
+			byLocalId.set(local.id, local);
+			if (local.serverId) {
+				byServerId.set(local.serverId, local);
+			} else {
+				byNameUnlinked.set(local.name, local);
 			}
+		}
+
+		const toPut: Tag[] = [];
+
+		for (const serverTag of serverTags) {
+			const localTag =
+				byServerId.get(serverTag.id) ??
+				byLocalId.get(serverTag.id) ??
+				byNameUnlinked.get(serverTag.name);
 
 			if (localTag) {
-				// Update if server is newer, and link serverId
 				if (serverTag.updatedAt > localTag.updatedAt || !localTag.serverId) {
-					await db.tags.update(localTag.id, {
+					toPut.push({
+						...localTag,
 						name: serverTag.name,
 						color: serverTag.color,
 						isDefault: serverTag.isDefault,
@@ -283,9 +296,8 @@ export async function upsertTagsFromServer(
 					});
 				}
 			} else {
-				// Insert new tag from server
-				await db.tags.add({
-					id: createUuid(),
+				toPut.push({
+					id: serverTag.id,
 					name: serverTag.name,
 					color: serverTag.color,
 					isDefault: serverTag.isDefault,
@@ -297,6 +309,10 @@ export async function upsertTagsFromServer(
 				});
 			}
 		}
+
+		if (toPut.length > 0) {
+			await db.tags.bulkPut(toPut);
+		}
 	});
 	await refreshTagColorCache();
 }
@@ -306,12 +322,15 @@ export async function upsertTagsFromServer(
  */
 export async function purgeSyncedDeletedTags(): Promise<number> {
 	const deletedAndSynced = await db.tags
-		.filter((t) => t.deletedAt !== null && t.syncStatus === 'synced')
+		.where('syncStatus')
+		.equals('synced')
+		.filter((t) => t.deletedAt !== null)
 		.toArray();
 
-	for (const tag of deletedAndSynced) {
-		await db.tags.delete(tag.id);
+	const ids = deletedAndSynced.map((t) => t.id);
+	if (ids.length > 0) {
+		await db.tags.bulkDelete(ids);
 	}
 
-	return deletedAndSynced.length;
+	return ids.length;
 }

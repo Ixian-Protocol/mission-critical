@@ -54,16 +54,16 @@ describe('taskTagSchema', () => {
 	});
 
 	describe('invalid tags', () => {
-		it('rejects unknown tag', () => {
+		it('accepts custom tag names', () => {
 			const result = taskTagSchema.safeParse('Unknown');
 
-			expect(result.success).toBe(false);
+			expect(result.success).toBe(true);
 		});
 
-		it('rejects lowercase tag', () => {
+		it('accepts lowercase tag names', () => {
 			const result = taskTagSchema.safeParse('general');
 
-			expect(result.success).toBe(false);
+			expect(result.success).toBe(true);
 		});
 
 		it('rejects empty string', () => {
@@ -190,13 +190,13 @@ describe('createTaskSchema', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('rejects invalid tag', () => {
+		it('accepts custom tag on create', () => {
 			const result = createTaskSchema.safeParse({
 				text: 'Valid text',
 				tag: 'InvalidTag'
 			});
 
-			expect(result.success).toBe(false);
+			expect(result.success).toBe(true);
 		});
 
 		it('rejects non-boolean important value', () => {
@@ -315,12 +315,12 @@ describe('updateTaskSchema', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('rejects invalid tag', () => {
+		it('accepts custom tag on update', () => {
 			const result = updateTaskSchema.safeParse({
 				tag: 'InvalidTag'
 			});
 
-			expect(result.success).toBe(false);
+			expect(result.success).toBe(true);
 		});
 
 		it('rejects non-boolean completed value', () => {
@@ -441,7 +441,7 @@ describe('taskSchema', () => {
 			expect(result.success).toBe(false);
 		});
 
-		it('rejects invalid tag', () => {
+		it('accepts custom tag on full task', () => {
 			const result = taskSchema.safeParse({
 				id: '550e8400-e29b-41d4-a716-446655440000',
 				text: 'Task',
@@ -457,7 +457,7 @@ describe('taskSchema', () => {
 				deletedAt: null
 			});
 
-			expect(result.success).toBe(false);
+			expect(result.success).toBe(true);
 		});
 
 		it('rejects non-number timestamps', () => {

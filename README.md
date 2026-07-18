@@ -63,24 +63,25 @@ This repository contains:
 Base prefix: `/api/v1`
 
 - Tasks
-  - `GET /tasks`
+  - `GET /tasks` (optional `since`, `limit` ≤ 1000; soft-deleted included when `since` is set)
   - `GET /tasks/{task_id}`
-  - `POST /tasks`
+  - `POST /tasks` (optional client `id` + timestamps for LWW sync)
   - `PATCH /tasks/{task_id}`
   - `DELETE /tasks/{task_id}` (soft delete)
-  - `DELETE /tasks/{task_id}/hard` (hard delete)
-  - `POST /sync` (bidirectional sync endpoint)
+  - `DELETE /tasks/{task_id}/hard` (hard delete; LAN maintenance only, omitted from OpenAPI)
 - Tags
-  - `GET /tags`
+  - `GET /tags` (optional `since`, `limit` ≤ 1000)
   - `GET /tags/{tag_id}`
-  - `POST /tags`
+  - `POST /tags` (optional client `id`; `is_default` is server-controlled)
   - `PATCH /tags/{tag_id}`
   - `DELETE /tags/{tag_id}` (soft delete, default tags protected)
+
+The client syncs via pull (`?since=`) + per-item create/update/delete. Shared UUIDs and client timestamps enable last-write-wins conflict resolution.
 
 Additional:
 - `GET /health` (app health)
 - `GET /` (basic API info)
-- FastAPI docs at `/docs` and `/redoc`
+- FastAPI docs at `/docs` and `/redoc` (development only)
 
 ## Prerequisites
 
@@ -165,15 +166,16 @@ Frontend defaults to Vite dev server (`http://localhost:5173`).
 
 Common compose vars:
 - `POSTGRES_USER` (default: `postgres`)
-- `POSTGRES_PASSWORD` (default: `postgres`)
+- `POSTGRES_PASSWORD` — change this for any shared host; Compose still defaults to `postgres` for local convenience. Postgres is bound to `127.0.0.1:5433` only.
 - `POSTGRES_DB` (default: `app`)
-- `ENVIRONMENT` (default: `development`)
-- `DEBUG` (default: `true`)
-- `BACKEND_CORS_ORIGINS` (comma-separated frontend origins allowed to call the backend; default: `http://localhost:3000,http://localhost:5173,http://localhost:4173,capacitor://localhost,http://localhost,https://localhost`)
-- `BACKEND_CORS_ORIGIN_REGEX` (optional regex; Compose defaults so `192.168.*.*` LAN frontends are allowed against API on `:8000` without listing each IP — set empty to disable)
-- `NTFY_URL` (default in compose backend: `http://ntfy:80`)
-- `NTFY_TOPIC` (default: `ixian-mission-critical`)
+- `ENVIRONMENT` (default: `development`; OpenAPI `/docs` only when `development`)
+- `DEBUG` (default: `false` in Compose)
+- `BACKEND_CORS_ORIGINS` (comma-separated; set in backend `.env`)
+- `BACKEND_CORS_ORIGIN_REGEX` (optional; Compose defaults so `192.168.*.*` LAN frontends can call API on `:8000` — set empty to disable)
+- `NTFY_URL` / `NTFY_TOPIC` / optional `NTFY_TOKEN` — set in backend `.env`; topic must match the random topic shown in app setup/settings
 - `NODE_MEMORY_MB` (default: `2048`; frontend build heap size in MB)
+
+Android cleartext HTTP remains enabled for LAN sync (homelab). App backup is disabled (`allowBackup=false`).
 
 ### Backend (`ixian-mission-critical-backend/.env`)
 
@@ -182,11 +184,11 @@ See `.env.example` for full keys. Important ones:
 - Runtime: `ENVIRONMENT`, `DEBUG`
 - CORS: `BACKEND_CORS_ORIGINS`, optional `BACKEND_CORS_ORIGIN_REGEX` for LAN IPs
 - DB: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- ntfy: `NTFY_URL`, optional `NTFY_TOKEN`, `NTFY_TOPIC`
+- ntfy: `NTFY_URL`, optional `NTFY_TOKEN`, `NTFY_TOPIC` (copy from the app’s setup/settings screen)
 
 ### Frontend (`ixian-mission-critical/.env`)
 
-- `VITE_SKIP_SETUP=true` bypasses setup-route requirement for local/offline dev.
+Optional local overrides only; Server URL and ntfy settings are stored per device during setup.
 
 The frontend stores the Server URL per browser/device during setup. For Docker
 Compose on a LAN, prefer the frontend origin such as `http://192.168.1.10:3000`;

@@ -216,15 +216,15 @@ def describe_tags_api():
             data = response.json()
             assert data["name"] == sample_tag_data["name"]
             assert data["color"] == sample_tag_data["color"]
-            assert data["is_default"] == sample_tag_data["is_default"]
+            assert data["is_default"] is False  # server-controlled; API creates are never default
             assert "id" in data
             assert "created_at" in data
             assert "updated_at" in data
             assert data["deleted_at"] is None
 
         @pytest.mark.asyncio
-        async def it_creates_a_default_tag(client: AsyncClient):
-            # Arrange
+        async def it_ignores_client_is_default_on_create(client: AsyncClient):
+            # Arrange — clients cannot create default tags via API
             current_time = now_ms()
             tag_data = {
                 "name": "Important",
@@ -239,7 +239,7 @@ def describe_tags_api():
 
             # Assert
             assert response.status_code == 201
-            assert response.json()["is_default"] is True
+            assert response.json()["is_default"] is False
 
         @pytest.mark.asyncio
         async def it_returns_400_for_duplicate_tag_name(
@@ -457,10 +457,10 @@ def describe_tags_api():
             assert data["name"] == existing_tag.name  # Unchanged
 
         @pytest.mark.asyncio
-        async def it_updates_is_default_flag(
+        async def it_ignores_client_is_default_on_update(
             client: AsyncClient, existing_tag: Tag
         ):
-            # Arrange
+            # Arrange — is_default is not part of TagUpdate
             update_data = {
                 "is_default": True,
                 "updated_at": now_ms(),
@@ -474,7 +474,7 @@ def describe_tags_api():
 
             # Assert
             assert response.status_code == 200
-            assert response.json()["is_default"] is True
+            assert response.json()["is_default"] == existing_tag.is_default
 
         @pytest.mark.asyncio
         async def it_updates_multiple_fields(
@@ -484,7 +484,6 @@ def describe_tags_api():
             update_data = {
                 "name": "New Name",
                 "color": "#abcdef",
-                "is_default": True,
                 "updated_at": now_ms(),
             }
 
@@ -499,7 +498,7 @@ def describe_tags_api():
             data = response.json()
             assert data["name"] == "New Name"
             assert data["color"] == "#abcdef"
-            assert data["is_default"] is True
+            assert data["is_default"] == existing_tag.is_default
 
         @pytest.mark.asyncio
         async def it_updates_updated_at_timestamp(

@@ -3,17 +3,14 @@ Pydantic schemas for API request/response validation.
 """
 from app.schemas.tag import (
     TagCreate,
-    TagUpdate,
     TagResponse,
+    TagUpdate,
 )
 from app.schemas.task import (
-    TaskCreate,
-    TaskUpdate,
-    TaskResponse,
     RecurrenceType,
-    TaskInSync,
-    SyncRequest,
-    SyncResponse,
+    TaskCreate,
+    TaskResponse,
+    TaskUpdate,
 )
 
 __all__ = [
@@ -24,7 +21,4 @@ __all__ = [
     "TaskUpdate",
     "TaskResponse",
     "RecurrenceType",
-    "TaskInSync",
-    "SyncRequest",
-    "SyncResponse",
 ]

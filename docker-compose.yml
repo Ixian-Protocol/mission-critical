@@ -5,10 +5,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # Set POSTGRES_PASSWORD in a root .env for anything beyond local-only use
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-app}
+    # Bind to localhost only — do not expose Postgres on the LAN
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,10 +20,11 @@ services:
       retries: 5
 
   ntfy:
-    image: binwiederhier/ntfy:latest
+    image: binwiederhier/ntfy:v2.11.0
     container_name: mission_critical_ntfy
     restart: unless-stopped
     command: [ "serve" ]
+    # LAN-facing for mobile clients; use a unique NTFY_TOPIC (see backend .env)
     ports:
       - "8082:80"
     healthcheck:
@@ -48,10 +51,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-app}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      DEBUG: ${DEBUG:-true}
+      DEBUG: ${DEBUG:-false}
       # Do not set BACKEND_CORS_ORIGINS or NTFY_* here for the same reason: compose
       # `environment` overrides env_file. Put CORS and ntfy in ixian-mission-critical-backend/.env
       # (see .env.example: NTFY_URL=http://ntfy:80 for the bundled ntfy service).
+      # LAN regex is a homelab convenience; tighten or clear for stricter deploys.
       BACKEND_CORS_ORIGIN_REGEX: ${BACKEND_CORS_ORIGIN_REGEX:-^http://192\.168\.[0-9]+\.[0-9]+:[0-9]+}
     depends_on:
       db:

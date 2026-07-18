@@ -17,12 +17,21 @@ router = APIRouter(prefix="/tags", tags=["Tags"])
     "",
     response_model=list[TagResponse],
     summary="List tags",
-    description="Get all tags. Use `since` parameter for sync to get only updated tags.",
+    description=(
+        "Get all tags. Use `since` parameter for sync to get only updated tags. "
+        "Capped at 1000 results."
+    ),
 )
 async def get_tags(
     since: int | None = Query(
         None,
         description="Unix timestamp (ms). Returns only tags with updated_at > since",
+    ),
+    limit: int = Query(
+        1000,
+        ge=1,
+        le=1000,
+        description="Maximum number of tags to return",
     ),
     db: AsyncSession = Depends(get_db),
 ) -> list[TagResponse]:
@@ -32,7 +41,7 @@ async def get_tags(
     When `since` is provided, includes soft-deleted tags so clients can sync deletions.
     """
     controller = TagController(db)
-    return await controller.get_tags(since=since)
+    return await controller.get_tags(since=since, limit=limit)
 
 
 @router.get(

@@ -16,7 +16,6 @@ from app.main import app
 from app.models.tag import Tag
 from app.models.task import Task, now_ms
 
-
 # Use SQLite for testing (in-memory)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -46,7 +45,7 @@ async def test_engine():
 
 
 @pytest.fixture
-async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(test_engine) -> AsyncGenerator[AsyncSession]:
     """
     Create a new database session for a test.
 
@@ -73,7 +72,7 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     """
     Create an async HTTP client for testing the API.
 

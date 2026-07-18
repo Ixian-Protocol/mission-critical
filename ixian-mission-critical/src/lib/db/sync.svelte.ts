@@ -46,6 +46,28 @@ let onlineCleanup: (() => void) | null = null;
 // Debounce timer for sync triggers
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+const SYNC_CONCURRENCY = 12;
+
+/**
+ * Run async work over items with bounded concurrency
+ */
+async function mapWithConcurrency<T>(
+	items: T[],
+	concurrency: number,
+	worker: (item: T) => Promise<void>
+): Promise<void> {
+	if (items.length === 0) return;
+
+	let nextIndex = 0;
+	const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+		while (nextIndex < items.length) {
+			const index = nextIndex++;
+			await worker(items[index]);
+		}
+	});
+	await Promise.all(runners);
+}
+
 /**
  * Get the current sync state
  */
@@ -207,10 +229,9 @@ function serverTaskToLocal(task: ServerTask) {
  */
 async function pullTasksFromServer(since: number): Promise<number> {
 	try {
-		const response = await apiClient.tasks.getAll(since);
-		const serverTasks = Array.isArray(response) ? response : response.data;
+		const serverTasks = await apiClient.tasks.getAll(since);
 
-		if (serverTasks && serverTasks.length > 0) {
+		if (serverTasks.length > 0) {
 			const tasksForLocal = serverTasks.map(serverTaskToLocal);
 			await upsertTasksFromServer(tasksForLocal);
 			return Math.max(...tasksForLocal.map((task) => task.updatedAt));
@@ -230,42 +251,41 @@ async function pullTasksFromServer(since: number): Promise<number> {
 }
 
 /**
+ * Push a single pending task to the server
+ */
+async function pushOneTask(task: Task): Promise<void> {
+	try {
+		if (task.deletedAt !== null) {
+			if (task.serverId) {
+				await deleteTaskOnServer(task.serverId);
+			}
+			await hardDeleteTask(task.id);
+		} else if (task.serverId) {
+			try {
+				await updateTaskOnServer(task);
+			} catch (error) {
+				if (isApiError(error) && error.status === 404) {
+					await clearTaskServerLink(task.id);
+					const refreshed = await db.tasks.get(task.id);
+					if (refreshed) await createTaskOnServer(refreshed);
+				} else {
+					console.error(`Failed to sync task ${task.id}:`, error);
+				}
+			}
+		} else {
+			await createTaskOnServer(task);
+		}
+	} catch (error) {
+		console.error(`Failed to sync task ${task.id}:`, error);
+	}
+}
+
+/**
  * Push local pending task changes to server
  */
 async function pushTasksToServer(): Promise<void> {
 	const pendingTasks = await getPendingTasks();
-
-	for (const task of pendingTasks) {
-		try {
-			if (task.deletedAt !== null) {
-				// Delete from server
-				if (task.serverId) {
-					await deleteTaskOnServer(task.serverId);
-				}
-				// Remove locally after successful server delete
-				await hardDeleteTask(task.id);
-			} else if (task.serverId) {
-				try {
-					await updateTaskOnServer(task);
-				} catch (error) {
-					// Server has no row for this id (new DB, different host, hard delete on server)
-					if (isApiError(error) && error.status === 404) {
-						await clearTaskServerLink(task.id);
-						const refreshed = await db.tasks.get(task.id);
-						if (refreshed) await createTaskOnServer(refreshed);
-					} else {
-						console.error(`Failed to sync task ${task.id}:`, error);
-					}
-				}
-			} else {
-				// Create new task on server
-				await createTaskOnServer(task);
-			}
-		} catch (error) {
-			console.error(`Failed to sync task ${task.id}:`, error);
-			// Continue with other tasks
-		}
-	}
+	await mapWithConcurrency(pendingTasks, SYNC_CONCURRENCY, pushOneTask);
 }
 
 /**
@@ -273,11 +293,7 @@ async function pushTasksToServer(): Promise<void> {
  */
 async function createTaskOnServer(task: Task): Promise<void> {
 	const data = await apiClient.tasks.create(task);
-	const serverId = data.data?.id || data.id;
-
-	if (serverId) {
-		await markTaskSynced(task.id, serverId);
-	}
+	await markTaskSynced(task.id, data.id);
 }
 
 /**
@@ -327,10 +343,9 @@ function serverTagToLocal(tag: ServerTag) {
  */
 async function pullTagsFromServer(since: number): Promise<number> {
 	try {
-		const response = await apiClient.tags.getAll(since);
-		const serverTags = Array.isArray(response) ? response : response.data;
+		const serverTags = await apiClient.tags.getAll(since);
 
-		if (serverTags && serverTags.length > 0) {
+		if (serverTags.length > 0) {
 			const tagsForLocal = serverTags.map(serverTagToLocal);
 			await upsertTagsFromServer(tagsForLocal);
 			return Math.max(...tagsForLocal.map((tag) => tag.updatedAt));
@@ -349,41 +364,41 @@ async function pullTagsFromServer(since: number): Promise<number> {
 }
 
 /**
+ * Push a single pending tag to the server
+ */
+async function pushOneTag(tag: Tag): Promise<void> {
+	try {
+		if (tag.deletedAt !== null) {
+			if (tag.serverId) {
+				await deleteTagOnServer(tag.serverId);
+			}
+			await db.tags.delete(tag.id);
+		} else if (tag.serverId) {
+			try {
+				await updateTagOnServer(tag);
+			} catch (error) {
+				if (isApiError(error) && error.status === 404) {
+					await clearTagServerLink(tag.id);
+					const refreshed = await db.tags.get(tag.id);
+					if (refreshed) await createTagOnServer(refreshed);
+				} else {
+					console.error(`Failed to sync tag ${tag.id}:`, error);
+				}
+			}
+		} else {
+			await createTagOnServer(tag);
+		}
+	} catch (error) {
+		console.error(`Failed to sync tag ${tag.id}:`, error);
+	}
+}
+
+/**
  * Push local pending tag changes to server
  */
 async function pushTagsToServer(): Promise<void> {
 	const pendingTags = await getPendingTags();
-
-	for (const tag of pendingTags) {
-		try {
-			if (tag.deletedAt !== null) {
-				// Delete from server
-				if (tag.serverId) {
-					await deleteTagOnServer(tag.serverId);
-				}
-				// Hard delete locally after successful server delete
-				await db.tags.delete(tag.id);
-			} else if (tag.serverId) {
-				try {
-					await updateTagOnServer(tag);
-				} catch (error) {
-					if (isApiError(error) && error.status === 404) {
-						await clearTagServerLink(tag.id);
-						const refreshed = await db.tags.get(tag.id);
-						if (refreshed) await createTagOnServer(refreshed);
-					} else {
-						console.error(`Failed to sync tag ${tag.id}:`, error);
-					}
-				}
-			} else {
-				// Create new tag on server
-				await createTagOnServer(tag);
-			}
-		} catch (error) {
-			console.error(`Failed to sync tag ${tag.id}:`, error);
-			// Continue with other tags
-		}
-	}
+	await mapWithConcurrency(pendingTags, SYNC_CONCURRENCY, pushOneTag);
 }
 
 /**
@@ -391,11 +406,7 @@ async function pushTagsToServer(): Promise<void> {
  */
 async function createTagOnServer(tag: Tag): Promise<void> {
 	const data = await apiClient.tags.create(tag);
-	const serverId = data.data?.id || data.id;
-
-	if (serverId) {
-		await markTagSynced(tag.id, serverId);
-	}
+	await markTagSynced(tag.id, data.id);
 }
 
 /**

@@ -453,7 +453,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", set()
+                "app.scheduler.reminded_tasks", {}
             ):
                 mock_send_reminder.return_value = True
 
@@ -509,7 +509,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", set()
+                "app.scheduler.reminded_tasks", {}
             ):
                 # Return empty list (completed tasks filtered by query)
                 mock_session = AsyncMock()
@@ -560,7 +560,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", set()
+                "app.scheduler.reminded_tasks", {}
             ):
                 # Return empty list (deleted tasks filtered by query)
                 mock_session = AsyncMock()
@@ -609,7 +609,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", set()
+                "app.scheduler.reminded_tasks", {}
             ):
                 # Return empty list (tasks without due_at filtered by query)
                 mock_session = AsyncMock()
@@ -642,7 +642,7 @@ def describe_scheduler():
             task.due_at = due_at
 
             # Pre-populate reminded set
-            reminded_set = {"already-reminded-task-id"}
+            reminded_set = {"already-reminded-task-id": current_time}
 
             with patch(
                 "app.scheduler.send_task_reminder"
@@ -651,7 +651,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", reminded_set
+                "app.scheduler.reminded_tasks", reminded_set
             ):
                 # Return the task from DB
                 mock_session = AsyncMock()
@@ -683,7 +683,7 @@ def describe_scheduler():
             task.text = "New task to remind"
             task.due_at = due_at
 
-            reminded_set = set()
+            reminded_set = {}
 
             with patch(
                 "app.scheduler.send_task_reminder"
@@ -692,7 +692,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", reminded_set
+                "app.scheduler.reminded_tasks", reminded_set
             ):
                 mock_send_reminder.return_value = True  # Notification succeeds
 
@@ -726,7 +726,7 @@ def describe_scheduler():
             task.text = "Task that fails notification"
             task.due_at = due_at
 
-            reminded_set = set()
+            reminded_set = {}
 
             with patch(
                 "app.scheduler.send_task_reminder"
@@ -735,7 +735,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", reminded_set
+                "app.scheduler.reminded_tasks", reminded_set
             ):
                 mock_send_reminder.return_value = False  # Notification fails
 
@@ -774,7 +774,7 @@ def describe_scheduler():
             task2.text = "Second task"
             task2.due_at = due_at + 10000  # Slightly different time
 
-            reminded_set = set()
+            reminded_set = {}
 
             with patch(
                 "app.scheduler.send_task_reminder"
@@ -783,7 +783,7 @@ def describe_scheduler():
             ) as mock_session_local, patch(
                 "app.scheduler.now_ms", return_value=current_time
             ), patch(
-                "app.scheduler.reminded_task_ids", reminded_set
+                "app.scheduler.reminded_tasks", reminded_set
             ):
                 mock_send_reminder.return_value = True
 

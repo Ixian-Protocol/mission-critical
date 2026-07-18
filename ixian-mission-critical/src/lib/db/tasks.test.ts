@@ -22,7 +22,9 @@ import {
 	markTaskSynced,
 	upsertTasksFromServer,
 	purgeSyncedDeletedTasks,
-	createNextRecurrence
+	createNextRecurrence,
+	isDueToday,
+	getTodayBounds
 } from './tasks.svelte';
 
 // Mock crypto.randomUUID for predictable IDs in tests
@@ -762,7 +764,7 @@ describe('Task CRUD Operations', () => {
 			expect(allTasks).toHaveLength(2);
 		});
 
-		it('generates local UUID for new tasks from server', async () => {
+		it('uses shared server UUID as local id for new tasks from server', async () => {
 			const serverTasks = [
 				{
 					id: 'server-uuid',
@@ -783,7 +785,7 @@ describe('Task CRUD Operations', () => {
 			await upsertTasksFromServer(serverTasks);
 
 			const tasks = await db.tasks.toArray();
-			expect(tasks[0].id).toMatch(/^test-uuid-/);
+			expect(tasks[0].id).toBe('server-uuid');
 			expect(tasks[0].serverId).toBe('server-uuid');
 		});
 	});
@@ -1030,6 +1032,26 @@ describe('Task CRUD Operations', () => {
 			const nextTask = await createNextRecurrence(task);
 
 			expect(nextTask).toBeNull();
+		});
+	});
+
+	describe('isDueToday / getTodayBounds', () => {
+		it('returns true for due times within local calendar day', () => {
+			const now = new Date(2026, 6, 18, 15, 30).getTime();
+			const { start, end } = getTodayBounds(now);
+
+			expect(isDueToday(start, now)).toBe(true);
+			expect(isDueToday(start + 12 * 60 * 60 * 1000, now)).toBe(true);
+			expect(isDueToday(end - 1, now)).toBe(true);
+		});
+
+		it('returns false for null, yesterday, and tomorrow', () => {
+			const now = new Date(2026, 6, 18, 15, 30).getTime();
+			const { start, end } = getTodayBounds(now);
+
+			expect(isDueToday(null, now)).toBe(false);
+			expect(isDueToday(start - 1, now)).toBe(false);
+			expect(isDueToday(end, now)).toBe(false);
 		});
 	});
 });

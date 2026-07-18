@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.controllers.task_controller import TaskController
 from app.db.session import get_db
 from app.schemas.task import (
-    SyncRequest,
-    SyncResponse,
     TaskCreate,
     TaskResponse,
     TaskUpdate,
@@ -19,72 +17,12 @@ from app.schemas.task import (
 router = APIRouter(tags=["Tasks"])
 
 
-@router.post(
-    "/sync",
-    response_model=SyncResponse,
-    summary="Sync tasks",
-    description="Bidirectional sync endpoint. Client sends locally modified tasks, "
-    "server responds with tasks that have changed since last sync.",
-    responses={
-        200: {
-            "description": "Sync successful",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "tasks": [
-                            {
-                                "id": "550e8400-e29b-41d4-a716-446655440000",
-                                "text": "Buy groceries",
-                                "description": "Milk, eggs, bread",
-                                "completed": False,
-                                "important": True,
-                                "tag": "Personal",
-                                "due_at": 1704067200000,
-                                "recurrence": "weekly",
-                                "recurrence_alt": False,
-                                "created_at": 1704000000000,
-                                "updated_at": 1704060000000,
-                                "deleted_at": None,
-                            }
-                        ],
-                        "server_time": 1704067200000,
-                        "deleted_ids": [],
-                    }
-                }
-            },
-        }
-    },
-)
-async def sync_tasks(
-    sync_request: SyncRequest,
-    db: AsyncSession = Depends(get_db),
-) -> SyncResponse:
-    """
-    Synchronize tasks between client and server.
-
-    The client sends all locally modified tasks since the last sync,
-    and the server responds with any tasks that have changed on the server.
-
-    **Sync Logic:**
-    - For each task in request:
-      - If task ID doesn't exist on server: INSERT it
-      - If task ID exists and client updated_at > server updated_at: UPDATE server
-      - If task ID exists and client updated_at <= server updated_at: Skip (server wins)
-      - If deleted_at is set: Mark as soft-deleted on server
-
-    **Response includes:**
-    - Tasks modified since last_sync_at (that weren't just updated by this request)
-    - Current server_time for use as next last_sync_at
-    """
-    controller = TaskController(db)
-    return await controller.sync(sync_request)
-
-
 @router.get(
     "/tasks",
     response_model=list[TaskResponse],
     summary="List tasks",
-    description="Get all non-deleted tasks with optional filtering.",
+    description="Get all non-deleted tasks with optional filtering. "
+    "Capped at 1000 results.",
 )
 async def get_tasks(
     tag: str | None = Query(None, description="Filter by tag name"),
@@ -98,6 +36,12 @@ async def get_tasks(
             "including soft-deleted tasks for sync."
         ),
     ),
+    limit: int = Query(
+        1000,
+        ge=1,
+        le=1000,
+        description="Maximum number of tasks to return",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[TaskResponse]:
     """Get tasks with optional filters; since-based sync includes soft-deleted tasks."""
@@ -107,6 +51,7 @@ async def get_tasks(
         completed=completed,
         important=important,
         since=since,
+        limit=limit,
     )
 
 
@@ -134,7 +79,7 @@ async def get_task(
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create task",
-    description="Create a new task.",
+    description="Create a new task. Optional client id and timestamps are honored for sync.",
 )
 async def create_task(
     task_in: TaskCreate,
@@ -188,11 +133,15 @@ async def delete_task(
     "/tasks/{task_id}/hard",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Hard delete task",
-    description="Permanently delete a task. Use with caution.",
+    description=(
+        "Permanently delete a task. Intended for LAN/homelab maintenance only; "
+        "prefer soft delete for normal clients."
+    ),
     responses={
         204: {"description": "Task permanently deleted"},
         404: {"description": "Task not found"},
     },
+    include_in_schema=False,
 )
 async def hard_delete_task(
     task_id: UUID,

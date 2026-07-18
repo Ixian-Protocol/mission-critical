@@ -11,23 +11,22 @@ class TagBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=50)
     color: str = Field(..., pattern=r"^#[0-9a-fA-F]{6}$")  # Hex color
-    is_default: bool = False
 
 
 class TagCreate(TagBase):
-    """Schema for creating a new tag."""
+    """Schema for creating a new tag. is_default is server-controlled."""
 
-    created_at: int  # Unix timestamp (ms) - client provides
-    updated_at: int  # Unix timestamp (ms) - client provides
+    id: UUID | None = None
+    created_at: int = Field(..., ge=0)  # Unix timestamp (ms) - client provides
+    updated_at: int = Field(..., ge=0)  # Unix timestamp (ms) - client provides
 
 
 class TagUpdate(BaseModel):
-    """Schema for updating an existing tag. All fields optional except updated_at."""
+    """Schema for updating an existing tag. is_default is server-controlled."""
 
     name: str | None = Field(default=None, min_length=1, max_length=50)
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
-    is_default: bool | None = None
-    updated_at: int  # Unix timestamp (ms) - client provides
+    updated_at: int = Field(..., ge=0)  # Unix timestamp (ms) - client provides
 
 
 class TagResponse(TagBase):
@@ -36,6 +35,7 @@ class TagResponse(TagBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    is_default: bool
     created_at: int  # Unix timestamp (ms)
     updated_at: int  # Unix timestamp (ms)
     deleted_at: int | None = None

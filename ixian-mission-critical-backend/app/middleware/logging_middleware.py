@@ -1,8 +1,9 @@
 """
 Request logging middleware.
 """
-import time
 import logging
+import time
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response

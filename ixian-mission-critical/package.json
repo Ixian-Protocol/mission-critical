@@ -1,5 +1,5 @@
 {
-	"name": "guardian-lone-worker-app",
+	"name": "ixian-mission-critical",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -13,7 +13,8 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
-		"test": "npm run test:unit -- --run",
+		"test": "vitest run",
+		"test:server": "vitest run --project server",
 		"sync": "npx cap sync",
 		"open:android": "npx cap open android",
 		"open:ios": "npx cap open ios"

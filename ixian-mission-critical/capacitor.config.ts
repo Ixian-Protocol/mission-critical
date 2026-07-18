@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.ixianprotocol.missioncritical',
   appName: 'Mission Critical',
   webDir: 'build',
+  // Cleartext + mixed content: intentional for LAN/homelab HTTP sync (e.g. http://192.168.x.x:3000).
   server: {
     androidScheme: 'http',
     cleartext: true,

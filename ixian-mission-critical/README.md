@@ -1,48 +1,23 @@
-# sv
+# Mission Critical (Frontend)
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit + Capacitor client for the Mission Critical offline-first todo app.
 
-## Creating a project
+See the [root README](../README.md) for architecture, Docker Compose, API surface, and end-to-end setup.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Scripts
 
-```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
+```bash
+pnpm install
+pnpm dev          # Vite dev server
+pnpm build        # Static production build
+pnpm test         # Vitest
+pnpm check        # svelte-check
+pnpm lint         # Prettier + ESLint
+pnpm sync         # Capacitor sync
 ```
 
-## Developing
+## Notes
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
-
-## License
-
-This frontend is part of the Mission Critical monorepo and is distributed under the
-**Mission Critical Non-Commercial Source License v1.0**.
-
-- Free for non-commercial use
-- Commercial use requires separate permission
-
-See the repository root [LICENSE](../LICENSE) for details.
+- First-run configuration lives on `/setup` (Server URL optional for offline-only).
+- Local data is stored in IndexedDB via Dexie; sync runs when a Server URL is set.
+- ntfy topic is generated per install — copy it into the backend `NTFY_TOPIC`.

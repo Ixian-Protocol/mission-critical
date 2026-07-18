@@ -8,6 +8,8 @@ from app.models.tag import Tag
 from app.models.task import now_ms
 from app.schemas.tag import TagCreate, TagUpdate
 
+DEFAULT_TAG_LIMIT = 1000
+
 
 class TagService:
     """Service for tag CRUD operations."""
@@ -25,42 +27,54 @@ class TagService:
         result = await self.db.execute(select(Tag).where(Tag.name == name))
         return result.scalar_one_or_none()
 
-    async def get_all(self, include_deleted: bool = False) -> list[Tag]:
+    async def get_all(
+        self, include_deleted: bool = False, limit: int = DEFAULT_TAG_LIMIT
+    ) -> list[Tag]:
         """
         Get all tags.
 
         Args:
             include_deleted: If True, include soft-deleted tags
+            limit: Maximum rows to return
         """
         query = select(Tag)
 
         if not include_deleted:
             query = query.where(Tag.deleted_at.is_(None))
 
-        query = query.order_by(Tag.name)
+        query = query.order_by(Tag.name).limit(min(max(limit, 1), DEFAULT_TAG_LIMIT))
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_since(self, since: int) -> list[Tag]:
+    async def get_since(self, since: int, limit: int = DEFAULT_TAG_LIMIT) -> list[Tag]:
         """
         Get tags updated since a given timestamp.
 
         Includes soft-deleted tags so clients can sync deletions.
         """
-        query = select(Tag).where(Tag.updated_at > since).order_by(Tag.name)
+        query = (
+            select(Tag)
+            .where(Tag.updated_at > since)
+            .order_by(Tag.name)
+            .limit(min(max(limit, 1), DEFAULT_TAG_LIMIT))
+        )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def create(self, tag_in: TagCreate) -> Tag:
-        """Create a new tag."""
-        tag = Tag(
-            name=tag_in.name,
-            color=tag_in.color,
-            is_default=tag_in.is_default,
-            created_at=tag_in.created_at,
-            updated_at=tag_in.updated_at,
-        )
+        """Create a new tag. is_default is always False for API-created tags."""
+        tag_kwargs: dict = {
+            "name": tag_in.name,
+            "color": tag_in.color,
+            "is_default": False,
+            "created_at": tag_in.created_at,
+            "updated_at": tag_in.updated_at,
+        }
+        if tag_in.id is not None:
+            tag_kwargs["id"] = str(tag_in.id)
+
+        tag = Tag(**tag_kwargs)
         self.db.add(tag)
         await self.db.flush()
         await self.db.refresh(tag)
@@ -70,7 +84,7 @@ class TagService:
         """
         Update an existing tag.
 
-        Returns None if tag not found.
+        Returns None if tag not found. Does not allow changing is_default via API.
         """
         tag = await self.get_by_id(tag_id)
         if tag is None:

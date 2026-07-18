@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
-# In-memory tracking of reminded tasks to prevent duplicates
-reminded_task_ids: set[str] = set()
+# In-memory tracking of reminded tasks: task_id -> reminded_at (ms)
+reminded_tasks: dict[str, int] = {}
 
 
 async def check_upcoming_tasks() -> None:
@@ -33,16 +33,12 @@ async def check_upcoming_tasks() -> None:
     reminder_window_end = now + (15 * 60 * 1000) + 30000  # 15:30 from now
 
     async with AsyncSessionLocal() as session:
-        # Find tasks:
-        # - Have a due_at in the reminder window
-        # - Not completed
-        # - Not deleted
         stmt = select(Task).where(
             and_(
                 Task.due_at.isnot(None),
                 Task.due_at >= reminder_window_start,
                 Task.due_at <= reminder_window_end,
-                Task.completed == False,  # noqa: E712
+                Task.completed.is_(False),
                 Task.deleted_at.is_(None),
             )
         )
@@ -53,8 +49,7 @@ async def check_upcoming_tasks() -> None:
         for task in tasks:
             task_id = str(task.id)
 
-            # Skip if already reminded
-            if task_id in reminded_task_ids:
+            if task_id in reminded_tasks:
                 continue
 
             success = await send_task_reminder(
@@ -64,17 +59,16 @@ async def check_upcoming_tasks() -> None:
             )
 
             if success:
-                reminded_task_ids.add(task_id)
-                logger.info(f"Sent reminder for task: {task.text}")
+                reminded_tasks[task_id] = now
+                logger.info("Sent reminder for task: %s", task.text)
             else:
-                logger.warning(f"Failed to send reminder for task: {task.text}")
+                logger.warning("Failed to send reminder for task: %s", task.text)
 
-    # Clean up old entries to prevent memory growth
-    # Remove task IDs for tasks that are now more than 1 hour past their reminder time
-    cleanup_threshold = now - (60 * 60 * 1000)  # 1 hour ago
-    # Note: We don't have access to due_at for cleanup, so we just let the set grow
-    # until restart. For a single-instance app with reasonable task volume, this is fine.
-    # If needed, we could store (task_id, timestamp) tuples instead.
+    # Prune entries older than 1 hour
+    cleanup_threshold = now - (60 * 60 * 1000)
+    stale_ids = [tid for tid, reminded_at in reminded_tasks.items() if reminded_at < cleanup_threshold]
+    for tid in stale_ids:
+        del reminded_tasks[tid]
 
 
 def start_scheduler() -> None:

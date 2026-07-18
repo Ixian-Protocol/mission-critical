@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+def _sanitize_header_value(value: str) -> str:
+    """Strip CR/LF so user text cannot inject HTTP headers."""
+    return value.replace("\r", " ").replace("\n", " ").strip()
+
+
 async def send_ntfy_notification(
     title: str,
     message: str,
@@ -37,7 +42,7 @@ async def send_ntfy_notification(
     url = f"{settings.NTFY_URL}/{settings.NTFY_TOPIC}"
 
     headers = {
-        "Title": title,
+        "Title": _sanitize_header_value(title),
         "Priority": str(priority),
     }
 
@@ -47,24 +52,28 @@ async def send_ntfy_notification(
     if settings.NTFY_TOKEN:
         headers["Authorization"] = f"Bearer {settings.NTFY_TOKEN}"
 
+    safe_message = message.replace("\r", "\n")
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
-                content=message,
+                content=safe_message,
                 headers=headers,
                 timeout=10.0,
             )
             if response.is_success:
-                logger.info(f"Sent ntfy notification: {title}")
+                logger.info("Sent ntfy notification: %s", title)
                 return True
             else:
                 logger.warning(
-                    f"ntfy notification failed with status {response.status_code}: {response.text}"
+                    "ntfy notification failed with status %s: %s",
+                    response.status_code,
+                    response.text,
                 )
                 return False
     except httpx.RequestError as e:
-        logger.error(f"Failed to send ntfy notification: {e}")
+        logger.error("Failed to send ntfy notification: %s", e)
         return False
 
 
@@ -79,10 +88,11 @@ async def send_task_reminder(task_id: str, task_text: str, due_at: int) -> bool:
     """
     due_time = datetime.fromtimestamp(due_at / 1000)
     time_str = due_time.strftime("%H:%M")
+    safe_text = _sanitize_header_value(task_text)
 
     return await send_ntfy_notification(
         title="Task Reminder",
-        message=f"{task_text}\nDue at {time_str}",
+        message=f"{safe_text}\nDue at {time_str}",
         priority=4,  # High priority for reminders
         tags=["alarm_clock", "task"],
     )

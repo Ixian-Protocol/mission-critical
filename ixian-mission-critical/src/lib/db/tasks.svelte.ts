@@ -16,6 +16,25 @@ import { createUuid } from './uuid';
 export type TaskFilter = 'all' | 'today' | 'important';
 
 /**
+ * Local calendar-day bounds for "today" filtering (inclusive start, exclusive end).
+ */
+export function getTodayBounds(now = Date.now()): { start: number; end: number } {
+	const date = new Date(now);
+	const start = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+	const end = start + 24 * 60 * 60 * 1000;
+	return { start, end };
+}
+
+/**
+ * Whether a due timestamp falls on the local calendar day of `now`.
+ */
+export function isDueToday(dueAt: number | null, now = Date.now()): boolean {
+	if (dueAt === null) return false;
+	const { start, end } = getTodayBounds(now);
+	return dueAt >= start && dueAt < end;
+}
+
+/**
  * Create a new task
  */
 export async function createTask(data: {
@@ -177,15 +196,21 @@ export async function hardDeleteTask(id: string): Promise<void> {
  */
 export async function clearCompletedTasks(): Promise<number> {
 	const now = Date.now();
-	const completedTasks = await db.tasks.filter((t) => t.completed && t.deletedAt === null).toArray();
+	const completedTasks = await db.tasks
+		.filter((t) => t.completed && t.deletedAt === null)
+		.toArray();
 
-	for (const task of completedTasks) {
-		await db.tasks.update(task.id, {
-			deletedAt: now,
-			updatedAt: now,
-			syncStatus: 'pending'
-		});
-	}
+	await db.transaction('rw', db.tasks, async () => {
+		await Promise.all(
+			completedTasks.map((task) =>
+				db.tasks.update(task.id, {
+					deletedAt: now,
+					updatedAt: now,
+					syncStatus: 'pending'
+				})
+			)
+		);
+	});
 
 	if (completedTasks.length > 0) {
 		triggerSync();
@@ -250,10 +275,11 @@ export function createTasksQuery(
 			case 'important':
 				tasks = tasks.filter((t) => t.important);
 				break;
-			case 'today':
-				// "Today" shows incomplete tasks
-				tasks = tasks.filter((t) => !t.completed);
+			case 'today': {
+				const now = Date.now();
+				tasks = tasks.filter((t) => isDueToday(t.dueAt, now));
 				break;
+			}
 			case 'all':
 			default:
 				// Show all non-deleted tasks
@@ -282,10 +308,11 @@ export function createTaskCountsQuery(): Observable<{
 	return liveQuery(async () => {
 		const tasks = await db.tasks.toArray();
 		const nonDeleted = tasks.filter((t) => t.deletedAt === null);
+		const now = Date.now();
 
 		return {
 			all: nonDeleted.length,
-			today: nonDeleted.filter((t) => !t.completed).length,
+			today: nonDeleted.filter((t) => isDueToday(t.dueAt, now)).length,
 			important: nonDeleted.filter((t) => t.important).length
 		};
 	});
@@ -335,14 +362,27 @@ export async function upsertTasksFromServer(
 		deletedAt: number | null;
 	}>
 ): Promise<void> {
+	if (serverTasks.length === 0) return;
+
 	await db.transaction('rw', db.tasks, async () => {
+		const allLocal = await db.tasks.toArray();
+		const byServerId = new Map<string, Task>();
+		const byLocalId = new Map<string, Task>();
+		for (const local of allLocal) {
+			byLocalId.set(local.id, local);
+			if (local.serverId) byServerId.set(local.serverId, local);
+		}
+
+		const toPut: Task[] = [];
+
 		for (const serverTask of serverTasks) {
-			const localTask = await db.tasks.where('serverId').equals(serverTask.id).first();
+			const localTask =
+				byServerId.get(serverTask.id) ?? byLocalId.get(serverTask.id) ?? undefined;
 
 			if (localTask) {
-				// Update if server is newer
 				if (serverTask.updatedAt > localTask.updatedAt) {
-					await db.tasks.update(localTask.id, {
+					toPut.push({
+						...localTask,
 						text: serverTask.text,
 						description: serverTask.description,
 						completed: serverTask.completed,
@@ -353,13 +393,19 @@ export async function upsertTasksFromServer(
 						recurrenceAlt: serverTask.recurrenceAlt,
 						updatedAt: serverTask.updatedAt,
 						deletedAt: serverTask.deletedAt,
+						syncStatus: 'synced',
+						serverId: serverTask.id
+					});
+				} else if (!localTask.serverId) {
+					toPut.push({
+						...localTask,
+						serverId: serverTask.id,
 						syncStatus: 'synced'
 					});
 				}
 			} else {
-				// Insert new task from server
-				await db.tasks.add({
-					id: createUuid(),
+				toPut.push({
+					id: serverTask.id,
 					text: serverTask.text,
 					description: serverTask.description,
 					completed: serverTask.completed,
@@ -376,6 +422,10 @@ export async function upsertTasksFromServer(
 				});
 			}
 		}
+
+		if (toPut.length > 0) {
+			await db.tasks.bulkPut(toPut);
+		}
 	});
 }
 
@@ -384,12 +434,15 @@ export async function upsertTasksFromServer(
  */
 export async function purgeSyncedDeletedTasks(): Promise<number> {
 	const deletedAndSynced = await db.tasks
-		.filter((t) => t.deletedAt !== null && t.syncStatus === 'synced')
+		.where('syncStatus')
+		.equals('synced')
+		.filter((t) => t.deletedAt !== null)
 		.toArray();
 
-	for (const task of deletedAndSynced) {
-		await db.tasks.delete(task.id);
+	const ids = deletedAndSynced.map((t) => t.id);
+	if (ids.length > 0) {
+		await db.tasks.bulkDelete(ids);
 	}
 
-	return deletedAndSynced.length;
+	return ids.length;
 }

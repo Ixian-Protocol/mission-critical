@@ -18,12 +18,14 @@ class TagController:
     def __init__(self, db: AsyncSession):
         self.service = TagService(db)
 
-    async def get_tags(self, since: int | None = None) -> list[TagResponse]:
+    async def get_tags(
+        self, since: int | None = None, limit: int = 1000
+    ) -> list[TagResponse]:
         """Get all tags, optionally filtered by updated_at."""
         if since is not None:
-            tags = await self.service.get_since(since)
+            tags = await self.service.get_since(since, limit=limit)
         else:
-            tags = await self.service.get_all()
+            tags = await self.service.get_all(limit=limit)
         return [TagResponse.model_validate(tag) for tag in tags]
 
     async def get_tag(self, tag_id: str) -> TagResponse:

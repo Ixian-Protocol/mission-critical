@@ -5,7 +5,7 @@ import json
 from functools import lru_cache
 from typing import Annotated, Any
 
-from pydantic import computed_field, field_validator
+from pydantic import ConfigDict, computed_field, field_validator
 from pydantic_settings import BaseSettings, NoDecode
 
 
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Environment
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # CORS - includes frontend dev servers and mobile app origins
     BACKEND_CORS_ORIGINS: Annotated[list[str], NoDecode] = [
@@ -69,7 +69,8 @@ class Settings(BaseSettings):
     # ntfy Notifications (optional)
     NTFY_URL: str | None = None  # e.g., "https://ntfy.sh" or "http://ntfy:80"
     NTFY_TOKEN: str | None = None  # Optional: for authenticated ntfy servers
-    NTFY_TOPIC: str = "ixian-mission-critical"
+    # Must match the client topic shown in setup/settings (generate a unique value)
+    NTFY_TOPIC: str = "change-me-set-unique-topic"
 
     @computed_field
     @property
@@ -89,12 +90,13 @@ class Settings(BaseSettings):
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+    )
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()

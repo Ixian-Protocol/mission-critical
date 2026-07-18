@@ -22,25 +22,35 @@
 	let expanded = $state(false);
 	let isJustCreated = $state(false);
 	let justCreatedTimeout: ReturnType<typeof setTimeout> | null = null;
+	let nowMs = $state(Date.now());
+	let overdueInterval: ReturnType<typeof setInterval> | null = null;
 
-	// Check if task is overdue
-	let isOverdue = $derived(task.dueAt && !task.completed && task.dueAt < Date.now());
+	// Check if task is overdue (tick so overdue state can update without remount)
+	let isOverdue = $derived(!!task.dueAt && !task.completed && task.dueAt < nowMs);
 
 	onMount(() => {
 		const age = Date.now() - task.createdAt;
-		if (age >= 1000) return;
+		if (age < 1000) {
+			isJustCreated = true;
+			justCreatedTimeout = setTimeout(() => {
+				isJustCreated = false;
+				justCreatedTimeout = null;
+			}, 1000 - age);
+		}
 
-		isJustCreated = true;
-		justCreatedTimeout = setTimeout(() => {
-			isJustCreated = false;
-			justCreatedTimeout = null;
-		}, 1000 - age);
+		overdueInterval = setInterval(() => {
+			nowMs = Date.now();
+		}, 60_000);
 	});
 
 	onDestroy(() => {
 		if (justCreatedTimeout) {
 			clearTimeout(justCreatedTimeout);
 			justCreatedTimeout = null;
+		}
+		if (overdueInterval) {
+			clearInterval(overdueInterval);
+			overdueInterval = null;
 		}
 	});
 
@@ -64,7 +74,6 @@
 
 	// Format recurrence for display
 	function formatRecurrence(recurrence: string, alt: boolean): string {
-		const prefix = alt ? 'Every other ' : '';
 		switch (recurrence) {
 			case 'daily':
 				return alt ? 'Every other day' : 'Daily';
@@ -81,14 +90,23 @@
 		await toggleTaskComplete(task.id);
 	}
 
-	async function handleToggleImportant(event: Event) {
-		event.stopPropagation();
+	async function handleToggleImportant() {
 		await toggleTaskImportant(task.id);
 	}
 
-	async function handleDelete(event: Event) {
-		event.stopPropagation();
+	async function handleDelete() {
 		await deleteTask(task.id);
+	}
+
+	function toggleExpanded() {
+		expanded = !expanded;
+	}
+
+	function handleExpandKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			toggleExpanded();
+		}
 	}
 </script>
 
@@ -102,46 +120,33 @@
 	)}
 >
 	<div class="flex items-start">
-		<!-- Checkbox -->
-		<div
-			class="mr-4 mt-0.5 shrink-0 cursor-pointer"
-			onclick={handleToggleComplete}
-			onkeydown={(e) => e.key === 'Enter' && handleToggleComplete()}
-			role="checkbox"
-			aria-checked={task.completed}
-			tabindex="0"
-		>
+		<div class="mr-4 mt-0.5 shrink-0">
 			<Checkbox
 				checked={task.completed}
 				onCheckedChange={handleToggleComplete}
-				onclick={(e: Event) => e.stopPropagation()}
+				aria-label={task.completed ? `Mark "${task.text}" incomplete` : `Mark "${task.text}" complete`}
 				class="border-muted-foreground/50 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
 			/>
 		</div>
 
-		<!-- Content (click to expand/collapse) -->
-		<div
-			class="min-w-0 flex-1 cursor-pointer"
-			onclick={() => (expanded = !expanded)}
-			onkeydown={(e) => e.key === 'Enter' && (expanded = !expanded)}
-			role="button"
-			tabindex="0"
-		>
-			<div class="flex items-center justify-between">
-				<div
+		<div class="min-w-0 flex-1">
+			<div class="flex items-center justify-between gap-2">
+				<button
+					type="button"
 					class={cn(
-						'pr-2 text-sm font-medium text-foreground transition-all',
+						'min-w-0 flex-1 cursor-pointer rounded-sm text-left text-sm font-medium text-foreground transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
 						!expanded && 'truncate',
 						task.completed && 'text-muted-foreground line-through'
 					)}
+					aria-expanded={expanded}
+					aria-controls="task-details-{task.id}"
+					onclick={toggleExpanded}
+					onkeydown={handleExpandKeydown}
 				>
 					{task.text}
-				</div>
+				</button>
 
-				<!-- Hover Actions (visible on mobile, hover-only on desktop) -->
-				<div
-					class="flex shrink-0 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
-				>
+				<div class="flex shrink-0 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
 					<Button
 						variant="ghost"
 						size="icon"
@@ -149,6 +154,8 @@
 							'h-7 w-7',
 							task.important ? 'text-yellow-500 opacity-100' : 'text-muted-foreground'
 						)}
+						aria-label={task.important ? `Unmark "${task.text}" as important` : `Mark "${task.text}" as important`}
+						aria-pressed={task.important}
 						onclick={handleToggleImportant}
 					>
 						<StarIcon class={cn('h-4 w-4', task.important && 'fill-current')} />
@@ -157,69 +164,69 @@
 						variant="ghost"
 						size="icon"
 						class="h-7 w-7 text-muted-foreground hover:text-destructive"
+						aria-label={`Delete "${task.text}"`}
 						onclick={handleDelete}
 					>
 						<Trash2Icon class="h-4 w-4" />
 					</Button>
 				</div>
 
-				<!-- Always visible important indicator (hidden on mobile since icons visible, hidden on desktop hover) -->
 				{#if task.important}
-					<div class="ml-2 hidden text-yellow-500 md:block md:group-hover:hidden">
+					<div class="ml-2 hidden text-yellow-500 md:block md:group-hover:hidden" aria-hidden="true">
 						<StarIcon class="h-3 w-3 fill-current" />
 					</div>
 				{/if}
 			</div>
 
-			<!-- Description -->
-			{#if task.description}
-				<p class={cn('mt-1.5 text-xs text-muted-foreground', !expanded && 'line-clamp-2')}>
-					{task.description}
-				</p>
-			{/if}
+			<div id="task-details-{task.id}">
+				{#if task.description}
+					<p class={cn('mt-1.5 text-xs text-muted-foreground', !expanded && 'line-clamp-2')}>
+						{task.description}
+					</p>
+				{/if}
 
-			<!-- Due Date & Recurrence -->
-			{#if task.dueAt || task.recurrence !== 'none'}
-				<div class="mt-1.5 flex flex-wrap items-center gap-2">
-					{#if task.dueAt}
-						<div
-							class={cn(
-								'flex items-center gap-1 text-[11px]',
-								isOverdue ? 'text-destructive' : 'text-muted-foreground'
-							)}
-						>
-							<CalendarIcon class="h-3 w-3" />
-							<span>{formatDueDate(task.dueAt)}</span>
-						</div>
-					{/if}
-					{#if task.recurrence !== 'none'}
-						<div class="flex items-center gap-1 text-[11px] text-muted-foreground">
-							<RepeatIcon class="h-3 w-3" />
-							<span>{formatRecurrence(task.recurrence, task.recurrenceAlt)}</span>
-						</div>
-					{/if}
-				</div>
-			{/if}
-
-			<!-- Tag -->
-			{#if task.tag !== 'General'}
-				{@const tagColor = getTagColor(task.tag)}
-				<div class="mt-1.5">
-					<Badge
-						variant="outline"
-						class="h-5 gap-1.5 px-1.5 text-[10px]"
-						style={tagColor ? `border-color: ${tagColor}40; color: ${tagColor}` : undefined}
-					>
-						{#if tagColor}
+				{#if task.dueAt || task.recurrence !== 'none'}
+					<div class="mt-1.5 flex flex-wrap items-center gap-2">
+						{#if task.dueAt}
 							<div
-								class="h-1.5 w-1.5 rounded-full"
-								style="background-color: {tagColor}"
-							></div>
+								class={cn(
+									'flex items-center gap-1 text-[11px]',
+									isOverdue ? 'text-destructive' : 'text-muted-foreground'
+								)}
+							>
+								<CalendarIcon class="h-3 w-3" aria-hidden="true" />
+								<span>{formatDueDate(task.dueAt)}</span>
+							</div>
 						{/if}
-						{task.tag}
-					</Badge>
-				</div>
-			{/if}
+						{#if task.recurrence !== 'none'}
+							<div class="flex items-center gap-1 text-[11px] text-muted-foreground">
+								<RepeatIcon class="h-3 w-3" aria-hidden="true" />
+								<span>{formatRecurrence(task.recurrence, task.recurrenceAlt)}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
+
+				{#if task.tag !== 'General'}
+					{@const tagColor = getTagColor(task.tag)}
+					<div class="mt-1.5">
+						<Badge
+							variant="outline"
+							class="h-5 gap-1.5 px-1.5 text-[10px]"
+							style={tagColor ? `border-color: ${tagColor}40; color: ${tagColor}` : undefined}
+						>
+							{#if tagColor}
+								<div
+									class="h-1.5 w-1.5 rounded-full"
+									style="background-color: {tagColor}"
+									aria-hidden="true"
+								></div>
+							{/if}
+							{task.tag}
+						</Badge>
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>

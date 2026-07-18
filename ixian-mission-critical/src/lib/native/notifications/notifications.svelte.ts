@@ -8,6 +8,7 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { LocalNotification, NotificationState } from './types';
 import { getCapabilities } from '../platform.svelte';
+import { logger } from '$lib/logger';
 
 // Reactive state
 let notificationState = $state<NotificationState>({
@@ -86,20 +87,20 @@ export async function checkPermissions(): Promise<NotificationState['permissionS
  * Request notification permissions
  */
 export async function requestPermissions(): Promise<boolean> {
-	console.log('[Notifications] requestPermissions called');
-	console.log('[Notifications] capabilities.notifications:', getCapabilities().notifications);
-	console.log('[Notifications] hasBrowserNotifications:', hasBrowserNotifications());
+	logger.debug('[Notifications] requestPermissions called');
+	logger.debug('[Notifications] capabilities.notifications:', getCapabilities().notifications);
+	logger.debug('[Notifications] hasBrowserNotifications:', hasBrowserNotifications());
 
 	// Try Capacitor LocalNotifications first (native)
 	if (getCapabilities().notifications) {
 		try {
-			console.log('[Notifications] Using Capacitor LocalNotifications');
+			logger.debug('[Notifications] Using Capacitor LocalNotifications');
 			const status = await LocalNotifications.requestPermissions();
 			const displayStatus = status.display as NotificationState['permissionStatus'];
 			notificationState.permissionStatus = displayStatus;
 			return status.display === 'granted';
 		} catch (e) {
-			console.error('[Notifications] Capacitor error:', e);
+			logger.error('[Notifications] Capacitor error:', e);
 			return false;
 		}
 	}
@@ -107,19 +108,19 @@ export async function requestPermissions(): Promise<boolean> {
 	// Fallback to browser Notification API (web)
 	if (hasBrowserNotifications()) {
 		try {
-			console.log('[Notifications] Using browser Notification API');
-			console.log('[Notifications] Current permission:', Notification.permission);
+			logger.debug('[Notifications] Using browser Notification API');
+			logger.debug('[Notifications] Current permission:', Notification.permission);
 			const result = await Notification.requestPermission();
-			console.log('[Notifications] Permission result:', result);
+			logger.debug('[Notifications] Permission result:', result);
 			notificationState.permissionStatus = result as NotificationState['permissionStatus'];
 			return result === 'granted';
 		} catch (e) {
-			console.error('[Notifications] Browser API error:', e);
+			logger.error('[Notifications] Browser API error:', e);
 			return false;
 		}
 	}
 
-	console.log('[Notifications] No notification API available');
+	logger.debug('[Notifications] No notification API available');
 	return false;
 }
 

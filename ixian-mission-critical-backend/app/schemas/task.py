@@ -30,9 +30,12 @@ class TaskBase(BaseModel):
 
 
 class TaskCreate(TaskBase):
-    """Schema for creating a new task."""
+    """Schema for creating a new task. Client may supply id and timestamps for sync."""
 
-    pass
+    id: UUID | None = None
+    created_at: int | None = Field(default=None, ge=0)
+    updated_at: int | None = Field(default=None, ge=0)
+    deleted_at: int | None = Field(default=None, ge=0)
 
 
 class TaskUpdate(BaseModel):
@@ -46,6 +49,9 @@ class TaskUpdate(BaseModel):
     due_at: int | None = None
     recurrence: RecurrenceType | None = None
     recurrence_alt: bool | None = None
+    created_at: int | None = Field(default=None, ge=0)
+    updated_at: int | None = Field(default=None, ge=0)
+    deleted_at: int | None = Field(default=None, ge=0)
 
 
 class TaskResponse(TaskBase):
@@ -57,29 +63,3 @@ class TaskResponse(TaskBase):
     created_at: int  # Unix timestamp (ms)
     updated_at: int  # Unix timestamp (ms)
     deleted_at: int | None = None
-
-
-class TaskInSync(TaskBase):
-    """Schema for tasks in sync request/response (includes all fields)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    created_at: int  # Unix timestamp (ms)
-    updated_at: int  # Unix timestamp (ms)
-    deleted_at: int | None = None
-
-
-class SyncRequest(BaseModel):
-    """Request body for sync endpoint."""
-
-    tasks: list[TaskInSync]
-    last_sync_at: int | None = None  # Unix timestamp (ms) of last successful sync
-
-
-class SyncResponse(BaseModel):
-    """Response body for sync endpoint."""
-
-    tasks: list[TaskInSync]
-    server_time: int  # Current server Unix timestamp (ms)
-    deleted_ids: list[UUID]  # IDs of tasks that were hard-deleted on server

@@ -7,7 +7,9 @@
 		setApiUrl,
 		testApiConnection,
 		saveNtfyConfig,
-		testNtfyConnection
+		testNtfyConnection,
+		getNtfyTopic,
+		ensureNtfyTopic
 	} from '$lib/stores/config.svelte';
 	import { requestPermissions } from '$lib/native';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -34,6 +36,13 @@
 	let ntfyConnectionStatus = $state<'idle' | 'testing' | 'success' | 'error'>('idle');
 	let ntfyConnectionError = $state<string | null>(null);
 	let notificationsOpen = $state(false);
+	let ntfyTopic = $state('');
+
+	$effect(() => {
+		ensureNtfyTopic().then((topic) => {
+			ntfyTopic = topic;
+		});
+	});
 
 	const { form, errors, enhance, submitting } = superForm(defaults(zod4(setupFormSchema)), {
 		SPA: true,
@@ -225,6 +234,17 @@
 									<FieldError>{$errors.ntfyUrl}</FieldError>
 								{/if}
 								<Description>Your ntfy server (e.g., https://ntfy.sh or self-hosted)</Description>
+							</Field>
+
+							<Field>
+								<Label for="ntfyTopic">ntfy Topic</Label>
+								<Content>
+									<Input id="ntfyTopic" name="ntfyTopic" type="text" value={ntfyTopic || getNtfyTopic()} readonly />
+								</Content>
+								<Description>
+									Set the same value as <code>NTFY_TOPIC</code> in the backend
+									<code>.env</code> so server reminders reach this app.
+								</Description>
 							</Field>
 
 							{#if ntfyConnectionStatus === 'success'}

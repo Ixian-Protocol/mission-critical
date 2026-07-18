@@ -4,25 +4,32 @@
  * Handles CRUD operations for tasks with the backend server.
  * Uses snake_case for API payloads (Python backend convention).
  */
+import { z } from 'zod';
 import { api } from '../client';
 import type { Task, TaskTag, RecurrenceType } from '$lib/db/schema';
 
-// Backend uses snake_case
-interface TaskPayload {
-	text: string;
-	description: string;
-	completed: boolean;
-	important: boolean;
-	tag: TaskTag;
-	due_at: number | null;
-	recurrence: RecurrenceType;
-	recurrence_alt: boolean;
-	created_at: number;
-	updated_at: number;
-}
+const recurrenceSchema = z.enum(['none', 'daily', 'weekly', 'monthly']);
 
-// Server response format (snake_case)
-export interface ServerTask {
+export const serverTaskSchema = z.object({
+	id: z.string().uuid(),
+	text: z.string(),
+	description: z.string(),
+	completed: z.boolean(),
+	important: z.boolean(),
+	tag: z.string(),
+	due_at: z.number().nullable(),
+	recurrence: recurrenceSchema,
+	recurrence_alt: z.boolean(),
+	created_at: z.number(),
+	updated_at: z.number(),
+	deleted_at: z.number().nullable()
+});
+
+export type ServerTask = z.infer<typeof serverTaskSchema>;
+
+const serverTaskListSchema = z.array(serverTaskSchema);
+
+interface TaskPayload {
 	id: string;
 	text: string;
 	description: string;
@@ -42,6 +49,7 @@ export interface ServerTask {
  */
 function toPayload(task: Task): TaskPayload {
 	return {
+		id: task.serverId ?? task.id,
 		text: task.text,
 		description: task.description,
 		completed: task.completed,
@@ -51,23 +59,24 @@ function toPayload(task: Task): TaskPayload {
 		recurrence: task.recurrence,
 		recurrence_alt: task.recurrenceAlt,
 		created_at: task.createdAt,
-		updated_at: task.updatedAt
+		updated_at: task.updatedAt,
+		deleted_at: task.deletedAt
 	};
 }
 
 /**
  * Fetch all tasks, optionally filtering by updated timestamp
  */
-export async function getAll(since?: number) {
+export async function getAll(since?: number): Promise<ServerTask[]> {
 	const endpoint = since && since > 0 ? `/tasks?since=${since}` : '/tasks';
-	return api.get<{ data: ServerTask[] } | ServerTask[]>(endpoint, { timeout: 10000 });
+	return api.getWithValidation(endpoint, serverTaskListSchema, { timeout: 10000 });
 }
 
 /**
  * Create a new task on the server
  */
-export async function create(task: Task) {
-	return api.post<{ data?: { id: string }; id?: string }>('/tasks', toPayload(task), {
+export async function create(task: Task): Promise<ServerTask> {
+	return api.postWithValidation('/tasks', serverTaskSchema, toPayload(task), {
 		timeout: 10000
 	});
 }
@@ -75,17 +84,17 @@ export async function create(task: Task) {
 /**
  * Update an existing task on the server
  */
-export async function update(serverId: string, task: Task) {
-	return api.patch<void>(`/tasks/${serverId}`, toPayload(task), {
+export async function update(serverId: string, task: Task): Promise<ServerTask> {
+	return api.patchWithValidation(`/tasks/${serverId}`, serverTaskSchema, toPayload(task), {
 		timeout: 10000
 	});
 }
 
 /**
- * Delete a task from the server
+ * Soft-delete a task from the server
  */
-export async function remove(serverId: string) {
-	return api.delete<void>(`/tasks/${serverId}`, { timeout: 10000 });
+export async function remove(serverId: string): Promise<void> {
+	await api.delete<void>(`/tasks/${serverId}`, { timeout: 10000 });
 }
 
 /**

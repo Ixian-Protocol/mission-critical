@@ -7,13 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
 from app.schemas.task import (
-    SyncRequest,
-    SyncResponse,
     TaskCreate,
     TaskResponse,
     TaskUpdate,
 )
-from app.services.sync_service import SyncService
 from app.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
@@ -24,11 +21,6 @@ class TaskController:
 
     def __init__(self, db: AsyncSession):
         self.task_service = TaskService(db)
-        self.sync_service = SyncService(db)
-
-    async def sync(self, sync_request: SyncRequest) -> SyncResponse:
-        """Handle sync request."""
-        return await self.sync_service.sync(sync_request)
 
     async def get_tasks(
         self,
@@ -36,6 +28,7 @@ class TaskController:
         completed: bool | None = None,
         important: bool | None = None,
         since: int | None = None,
+        limit: int = 1000,
     ) -> list[TaskResponse]:
         """Get all tasks with optional filters."""
         tasks = await self.task_service.get_all(
@@ -43,6 +36,7 @@ class TaskController:
             completed=completed,
             important=important,
             since=since,
+            limit=limit,
         )
         return [TaskResponse.model_validate(task) for task in tasks]
 

@@ -12,17 +12,26 @@ import { Preferences } from '@capacitor/preferences';
 const API_URL_KEY = 'api_url';
 const SETUP_COMPLETE_KEY = 'setup_complete';
 const NTFY_URL_KEY = 'ntfy_url';
+const NTFY_TOPIC_KEY = 'ntfy_topic';
 const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
-
-// Fixed ntfy topic name (single-user app)
-export const NTFY_TOPIC = 'ixian-mission-critical';
 
 // In-memory cache for synchronous access (reactive — UI updates after initConfig / setApiUrl)
 let cachedApiUrl = $state<string | null>(null);
 let cachedSetupComplete = $state(false);
 let cachedNtfyUrl = $state<string | null>(null);
+let cachedNtfyTopic = $state<string | null>(null);
 let cachedNotificationsEnabled = $state(false);
 let initialized = false;
+
+/**
+ * Generate a random ntfy topic (not a well-known public name).
+ */
+export function generateNtfyTopic(): string {
+	const bytes = new Uint8Array(12);
+	crypto.getRandomValues(bytes);
+	const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+	return `mc-${hex}`;
+}
 
 const API_V1_SUFFIX = '/api/v1';
 const API_V1_BASE_PATTERN = /\/api\/v1$/i;
@@ -35,17 +44,24 @@ export async function initConfig(): Promise<void> {
 	if (initialized) return;
 
 	try {
-		const [apiUrlResult, setupCompleteResult, ntfyUrlResult, notificationsEnabledResult] =
-			await Promise.all([
-				Preferences.get({ key: API_URL_KEY }),
-				Preferences.get({ key: SETUP_COMPLETE_KEY }),
-				Preferences.get({ key: NTFY_URL_KEY }),
-				Preferences.get({ key: NOTIFICATIONS_ENABLED_KEY })
-			]);
+		const [
+			apiUrlResult,
+			setupCompleteResult,
+			ntfyUrlResult,
+			ntfyTopicResult,
+			notificationsEnabledResult
+		] = await Promise.all([
+			Preferences.get({ key: API_URL_KEY }),
+			Preferences.get({ key: SETUP_COMPLETE_KEY }),
+			Preferences.get({ key: NTFY_URL_KEY }),
+			Preferences.get({ key: NTFY_TOPIC_KEY }),
+			Preferences.get({ key: NOTIFICATIONS_ENABLED_KEY })
+		]);
 
 		cachedApiUrl = normalizeApiUrl(apiUrlResult.value);
 		cachedSetupComplete = setupCompleteResult.value === 'true';
 		cachedNtfyUrl = ntfyUrlResult.value;
+		cachedNtfyTopic = ntfyTopicResult.value;
 		cachedNotificationsEnabled = notificationsEnabledResult.value === 'true';
 
 		// Web: URL may only exist in localStorage (e.g. Preferences empty on first load)
@@ -59,10 +75,18 @@ export async function initConfig(): Promise<void> {
 			if (!cachedNtfyUrl && localStorage.getItem(NTFY_URL_KEY)) {
 				cachedNtfyUrl = localStorage.getItem(NTFY_URL_KEY);
 			}
+			if (!cachedNtfyTopic && localStorage.getItem(NTFY_TOPIC_KEY)) {
+				cachedNtfyTopic = localStorage.getItem(NTFY_TOPIC_KEY);
+			}
 			if (!cachedNotificationsEnabled && localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) === 'true') {
 				cachedNotificationsEnabled = true;
 			}
 		}
+
+		if (!cachedNtfyTopic) {
+			await ensureNtfyTopic();
+		}
+
 		initialized = true;
 	} catch (error) {
 		console.error('Failed to initialize config from Preferences:', error);
@@ -71,7 +95,14 @@ export async function initConfig(): Promise<void> {
 			cachedApiUrl = normalizeApiUrl(localStorage.getItem(API_URL_KEY));
 			cachedSetupComplete = localStorage.getItem(SETUP_COMPLETE_KEY) === 'true';
 			cachedNtfyUrl = localStorage.getItem(NTFY_URL_KEY);
+			cachedNtfyTopic = localStorage.getItem(NTFY_TOPIC_KEY);
 			cachedNotificationsEnabled = localStorage.getItem(NOTIFICATIONS_ENABLED_KEY) === 'true';
+		}
+		if (!cachedNtfyTopic) {
+			cachedNtfyTopic = generateNtfyTopic();
+			if (typeof localStorage !== 'undefined') {
+				localStorage.setItem(NTFY_TOPIC_KEY, cachedNtfyTopic);
+			}
 		}
 		initialized = true;
 	}
@@ -190,6 +221,7 @@ export async function clearConfig(): Promise<void> {
 			Preferences.remove({ key: API_URL_KEY }),
 			Preferences.remove({ key: SETUP_COMPLETE_KEY }),
 			Preferences.remove({ key: NTFY_URL_KEY }),
+			Preferences.remove({ key: NTFY_TOPIC_KEY }),
 			Preferences.remove({ key: NOTIFICATIONS_ENABLED_KEY })
 		]);
 	} catch (error) {
@@ -198,6 +230,7 @@ export async function clearConfig(): Promise<void> {
 			localStorage.removeItem(API_URL_KEY);
 			localStorage.removeItem(SETUP_COMPLETE_KEY);
 			localStorage.removeItem(NTFY_URL_KEY);
+			localStorage.removeItem(NTFY_TOPIC_KEY);
 			localStorage.removeItem(NOTIFICATIONS_ENABLED_KEY);
 		}
 	}
@@ -205,6 +238,7 @@ export async function clearConfig(): Promise<void> {
 	cachedApiUrl = null;
 	cachedSetupComplete = false;
 	cachedNtfyUrl = null;
+	cachedNtfyTopic = null;
 	cachedNotificationsEnabled = false;
 }
 
@@ -263,10 +297,31 @@ export function getNtfyUrl(): string | null {
 }
 
 /**
- * Get the ntfy topic name (fixed for this app)
+ * Get the ntfy topic name (random per install; must match backend NTFY_TOPIC)
  */
 export function getNtfyTopic(): string {
-	return NTFY_TOPIC;
+	return cachedNtfyTopic ?? '';
+}
+
+/**
+ * Ensure a topic exists and persist it. Returns the topic.
+ */
+export async function ensureNtfyTopic(): Promise<string> {
+	if (cachedNtfyTopic) return cachedNtfyTopic;
+
+	const topic = generateNtfyTopic();
+	try {
+		await Preferences.set({ key: NTFY_TOPIC_KEY, value: topic });
+		cachedNtfyTopic = topic;
+	} catch {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(NTFY_TOPIC_KEY, topic);
+			cachedNtfyTopic = topic;
+		} else {
+			cachedNtfyTopic = topic;
+		}
+	}
+	return topic;
 }
 
 /**
@@ -362,7 +417,8 @@ export async function testNtfyConnection(
 
 		// Fallback: try to access a test topic (just check server responds)
 		// ntfy returns 200 for GET on topic with no messages
-		const testResponse = await fetch(`${normalizedUrl}/${NTFY_TOPIC}/json?poll=1`, {
+		const topic = cachedNtfyTopic || (await ensureNtfyTopic());
+		const testResponse = await fetch(`${normalizedUrl}/${topic}/json?poll=1`, {
 			method: 'GET',
 			headers: { Accept: 'application/json' },
 			signal: AbortSignal.timeout(5000)

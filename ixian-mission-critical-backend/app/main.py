@@ -1,25 +1,25 @@
 """
 Main FastAPI application.
 """
-from contextlib import asynccontextmanager
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.scheduler import start_scheduler, stop_scheduler
-from app.core.exceptions import AppException
 from app.core.error_handlers import (
     app_exception_handler,
+    general_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler,
 )
+from app.core.exceptions import AppException
 from app.middleware.logging_middleware import LoggingMiddleware
-from app.api.v1.router import api_router
+from app.scheduler import start_scheduler, stop_scheduler
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     if settings.NTFY_URL:
-        logger.info(f"Starting scheduler with ntfy notifications to {settings.NTFY_URL}")
+        logger.info("Starting scheduler with ntfy notifications to %s", settings.NTFY_URL)
         start_scheduler()
     else:
         logger.info("NTFY_URL not configured, task reminders disabled")
@@ -56,23 +56,25 @@ def create_application() -> FastAPI:
     Returns:
         Configured FastAPI application instance
     """
+    is_dev = settings.ENVIRONMENT.lower() == "development"
+
     # Initialize FastAPI app
     app = FastAPI(
         title=settings.PROJECT_NAME,
         description=settings.DESCRIPTION,
         version=settings.VERSION,
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if is_dev else None,
+        redoc_url="/redoc" if is_dev else None,
+        openapi_url="/openapi.json" if is_dev else None,
         lifespan=lifespan,
     )
 
-    # Configure CORS — allow_origins lists exact origins; regex matches LAN URLs when set
-    cors_kwargs = {
+    # Configure CORS — credentials off (no cookie auth); narrow methods/headers
+    cors_kwargs: dict = {
         "allow_origins": settings.BACKEND_CORS_ORIGINS,
-        "allow_credentials": True,
-        "allow_methods": ["*"],
-        "allow_headers": ["*"],
+        "allow_credentials": False,
+        "allow_methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept"],
     }
     if settings.BACKEND_CORS_ORIGIN_REGEX:
         cors_kwargs["allow_origin_regex"] = settings.BACKEND_CORS_ORIGIN_REGEX
@@ -103,8 +105,8 @@ def create_application() -> FastAPI:
             "name": settings.PROJECT_NAME,
             "version": settings.VERSION,
             "description": settings.DESCRIPTION,
-            "docs": "/docs",
-            "redoc": "/redoc",
+            "docs": "/docs" if is_dev else None,
+            "redoc": "/redoc" if is_dev else None,
         }
 
     # Health check endpoint
@@ -122,7 +124,7 @@ def create_application() -> FastAPI:
             "version": settings.VERSION,
         }
 
-    logger.info(f"Application '{settings.PROJECT_NAME}' initialized successfully")
+    logger.info("Application '%s' initialized successfully", settings.PROJECT_NAME)
 
     return app
 
